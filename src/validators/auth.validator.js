@@ -1,28 +1,20 @@
-'use strict';
+const { body } = require('express-validator');
 
-const { z } = require('zod');
+const VALID_ROLES = ['fleet_manager', 'driver', 'safety_officer', 'financial_analyst'];
 
-// Mirrors the `user_role` PostgreSQL ENUM exactly — keeping the allowed
-// set here in sync with the DB type means an invalid role is rejected
-// with a clean 400 at the edge, before it ever reaches a query and
-// triggers a raw '22P02 invalid input value for enum' DB error.
-const USER_ROLES = ['fleet_manager', 'driver', 'safety_officer', 'financial_analyst'];
+exports.registerValidator = [
+  body('name').trim().notEmpty().withMessage('Name is required')
+    .isLength({ max: 150 }).withMessage('Name must be under 150 characters'),
+  body('email').trim().notEmpty().withMessage('Email is required')
+    .isEmail().withMessage('Invalid email format').normalizeEmail(),
+  body('password').isString().isLength({ min: 8 })
+    .withMessage('Password must be at least 8 characters'),
+  body('role').notEmpty().withMessage('Role is required')
+    .isIn(VALID_ROLES).withMessage(`Role must be one of: ${VALID_ROLES.join(', ')}`),
+];
 
-const registerSchema = z.object({
-  name: z.string().trim().min(2, 'Name must be at least 2 characters long.').max(150),
-  email: z.string().trim().toLowerCase().email('A valid email address is required.'),
-  password: z
-    .string()
-    .min(8, 'Password must be at least 8 characters long.')
-    .max(72, 'Password must be at most 72 characters long.'), // bcrypt's hard limit
-  role: z.enum(USER_ROLES, {
-    errorMap: () => ({ message: `Role must be one of: ${USER_ROLES.join(', ')}` }),
-  }),
-});
-
-const loginSchema = z.object({
-  email: z.string().trim().toLowerCase().email('A valid email address is required.'),
-  password: z.string().min(1, 'Password is required.'),
-});
-
-module.exports = { registerSchema, loginSchema, USER_ROLES };
+exports.loginValidator = [
+  body('email').trim().notEmpty().withMessage('Email is required')
+    .isEmail().withMessage('Invalid email format'),
+  body('password').notEmpty().withMessage('Password is required'),
+];
