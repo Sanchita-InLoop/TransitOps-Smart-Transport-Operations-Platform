@@ -4,12 +4,14 @@ const express = require('express');
 const authenticate = require('../middleware/auth');
 const restrictTo = require('../middleware/rbac');
 const validate = require('../middleware/validate');
-const { createFuelLogSchema } = require('../validators/fuelLog.validator');
-const { createFuelLog } = require('../controllers/fuelLog.controller');
+const { createFuelLogSchema, listFuelLogsQuerySchema } = require('../validators/fuelLog.validator');
+const { listFuelLogs, createFuelLog } = require('../controllers/fuelLog.controller');
 
 const router = express.Router();
 
 router.use(authenticate);
+
+router.get('/', validate(listFuelLogsQuerySchema, 'query'), listFuelLogs);
 
 router.post('/', restrictTo('fleet_manager', 'driver'), validate(createFuelLogSchema), createFuelLog);
 

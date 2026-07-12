@@ -9,4 +9,13 @@ const createExpenseSchema = z.object({
   expense_date: z.coerce.date().optional(),
 });
 
-module.exports = { createExpenseSchema };
+/**
+ * Query-string filters for GET /api/expenses. All optional — an empty
+ * query returns every expense.
+ */
+const listExpensesQuerySchema = z.object({
+  vehicle_id: z.coerce.number().int().positive().optional(),
+  type: z.string().trim().min(1).max(50).optional(),
+});
+
+module.exports = { createExpenseSchema, listExpensesQuerySchema };
