@@ -2,24 +2,25 @@
 
 const { z } = require('zod');
 
-const uuid = z.string().uuid('A valid UUID is required.');
+// Helper for auto-incrementing integer IDs
+const idSchema = (fieldName) => z.coerce.number().int().positive(`A valid ${fieldName} is required.`);
 
 const createTripSchema = z.object({
-  vehicle_id: z.coerce.number().int().positive('A valid vehicle_id is required.'),
-  driver_id: uuid,
-  source: z.string().trim().min(1, 'Source is required.').max(255),
-  destination: z.string().trim().min(1, 'Destination is required.').max(255),
-  // Mirrors chk_trips_cargo_weight_positive / chk_trips_planned_distance_positive
-  // (strictly > 0, not just >= 0) — matches the DDL's business rule exactly.
+  vehicle_id: idSchema('vehicle_id'),
+  driver_id: z.string().uuid('A valid driver_id is required.'),
+  source: z.string().trim().min(1, 'Source location is required.').max(255),
+  destination: z.string().trim().min(1, 'Destination location is required.').max(255),
+  // Enforces strictly greater than 0 to mirror database CHECK constraints
   cargo_weight: z.coerce.number().positive('Cargo weight must be greater than 0.'),
   planned_distance: z.coerce.number().positive('Planned distance must be greater than 0.'),
 });
 
 const tripIdParamSchema = z.object({
-  id: z.coerce.number().int().positive('A valid trip id is required.'),
+  id: idSchema('trip ID'),
 });
 
 const completeTripSchema = z.object({
+  // Non-negative as requested, allowing zero for edge cases
   actual_distance: z.coerce.number().nonnegative('Actual distance cannot be negative.'),
   fuel_consumed: z.coerce.number().nonnegative('Fuel consumed cannot be negative.').optional(),
 });
