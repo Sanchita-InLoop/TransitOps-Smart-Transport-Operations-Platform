@@ -1,25 +1,18 @@
-'use strict';
-
 const { z } = require('zod');
 
-// Mirrors chk_vehicles_* CHECK constraints from the DDL — validating
-// these at the API edge gives a clean 400 with a field-level message
-// instead of surfacing a raw '23514 check_violation' from Postgres.
+// Coercing numeric fields ensures string payloads from clients parse correctly
 const createVehicleSchema = z.object({
-  registration_number: z.string().trim().min(1, 'Registration number is required.').max(20),
-  model_name: z.string().trim().min(1, 'Model name is required.').max(100),
-  type: z.string().trim().min(1, 'Vehicle type is required.').max(50),
-  max_load_capacity: z.coerce
-    .number({ invalid_type_error: 'Max load capacity must be a number.' })
-    .nonnegative('Max load capacity cannot be negative.'),
-  odometer: z.coerce
-    .number({ invalid_type_error: 'Odometer must be a number.' })
-    .nonnegative('Odometer cannot be negative.')
-    .optional()
-    .default(0),
-  acquisition_cost: z.coerce
-    .number({ invalid_type_error: 'Acquisition cost must be a number.' })
-    .nonnegative('Acquisition cost cannot be negative.'),
+  registration_number: z.string().min(1, "Required").max(20, "Max 20 chars"),
+  model_name: z.string().min(1, "Required").max(100, "Max 100 chars"),
+  type: z.string().min(1, "Required").max(50, "Max 50 chars"),
+  max_load_capacity: z.coerce.number().positive("Must be a positive number"),
+  odometer: z.coerce.number().min(0).optional(), // Has DB default 0
+  acquisition_cost: z.coerce.number().positive("Must be a positive number")
 });
 
-module.exports = { createVehicleSchema };
+const updateVehicleSchema = createVehicleSchema.partial();
+
+module.exports = {
+  createVehicleSchema,
+  updateVehicleSchema
+};
