@@ -4,12 +4,14 @@ const express = require('express');
 const helmet = require('helmet');
 const cors = require('cors');
 const morgan = require('morgan');
-
 const apiRouter = require('./routes');
 const errorHandler = require('./middleware/errorHandler');
 const ApiError = require('./utils/ApiError');
 
 const app = express();
+
+// TEMP DEBUG ROUTE — proves whether the hang is before or after global middleware. Remove once bug is fixed.
+
 
 // --- Security middleware, applied globally, before any route logic ---
 app.use(helmet()); // sensible secure HTTP headers (CSP, X-Frame-Options, etc.)
