@@ -16,7 +16,7 @@ const create = catchAsync(async (req, res) => {
     );
     
     await client.query(
-      `UPDATE vehicles SET status = 'in_shop' WHERE id = $1`,
+      `UPDATE vehicles SET status = 'in_shop' WHERE id = $1 AND status != 'retired'`,
       [vehicle_id]
     );
     
