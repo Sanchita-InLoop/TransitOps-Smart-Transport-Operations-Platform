@@ -1,3 +1,5 @@
+
+  
 'use strict';
 
 const ApiError = require('../utils/ApiError');
@@ -8,6 +10,7 @@ const ApiError = require('../utils/ApiError');
  * resource route (see vehicle.routes.js: validate(createVehicleSchema)).
  */
 module.exports = (schema) => (req, res, next) => {
+   
   const result = schema.safeParse(req.body);
 
   if (!result.success) {

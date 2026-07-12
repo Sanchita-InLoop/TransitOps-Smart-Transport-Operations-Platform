@@ -12,10 +12,13 @@ const signToken = (user) =>
   });
 
 exports.register = catchAsync(async (req, res, next) => {
+ 
   const { name, email, password, role } = req.body;
 
   // Fast path for the common case — a clean 409 without hitting the DB twice.
+ console.log('>>> about to query DB for existing user');
   const existing = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
+  console.log('>>> DB query finished, rows:', existing.rows.length);
   if (existing.rows.length > 0) {
     return next(ApiError.conflict('An account with this email already exists'));
   }
