@@ -6,6 +6,8 @@ import { BrowserRouter, Routes, Route, Navigate, NavLink } from 'react-router-do
 import Drivers from './pages/Drivers';
 import TripList from './pages/TripList';
 import CreateTrip from './pages/CreateTrip';
+import FuelExpenses from './pages/FuelExpenses';
+import Reports from './pages/Reports';
 import Vehicles from './pages/Vehicles';
 import MaintenanceLogs from './pages/MaintenanceLogs';
 import Login from './pages/Login';
@@ -13,14 +15,12 @@ import Register from './pages/Register';
 import ProtectedRoute from './components/ProtectedRoute';
 import { AuthProvider } from './context/AuthContext';
 
-// ============================================================================
-// Sidebar navigation config — single source of truth for the nav links so
-// the sidebar and any future breadcrumbs/mobile nav can share it.
-// ============================================================================
 const NAV_ITEMS = [
   { to: '/drivers', label: 'Driver Registry', icon: '📋' },
   { to: '/trips/new', label: 'Dispatch New Trip', icon: '🚚' },
   { to: '/trips', label: 'Trip Monitor', icon: '🔄' },
+  { to: '/fuel-expenses', label: 'Fuel & Expenses', icon: '⛽' },
+  { to: '/reports', label: 'Reports', icon: '📊' },
 ];
 const FLEET_NAV_ITEMS = [
   { to: '/vehicles', label: 'Vehicle Registry', icon: '🚌' },
@@ -30,7 +30,6 @@ const FLEET_NAV_ITEMS = [
 function Sidebar() {
   return (
     <aside className="flex h-screen w-64 flex-shrink-0 flex-col border-r border-zinc-800 bg-zinc-900">
-      {/* Brand */}
       <div className="flex items-center gap-2.5 border-b border-zinc-800 px-5 py-5">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-500/15 text-indigo-400 ring-1 ring-indigo-500/30">
           <span className="text-sm font-bold">T</span>
@@ -41,7 +40,6 @@ function Sidebar() {
         </div>
       </div>
 
-      {/* Nav */}
       <nav className="flex-1 space-y-1 px-3 py-4">
         <p className="px-2.5 pb-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-600">
           Drivers &amp; Trips
@@ -86,7 +84,6 @@ function Sidebar() {
         ))}
       </nav>
 
-      {/* Footer */}
       <div className="border-t border-zinc-800 px-5 py-4">
         <p className="text-[11px] text-zinc-600">TransitOps · Drivers, Trips, Fleet &amp; Maintenance</p>
       </div>
@@ -99,13 +96,7 @@ function NotFound() {
     <div className="flex h-full flex-1 flex-col items-center justify-center bg-zinc-950 px-6 text-center">
       <p className="text-xs font-semibold uppercase tracking-widest text-zinc-600">Error 404</p>
       <h1 className="mt-3 text-3xl font-semibold text-zinc-100">This route doesn&apos;t exist.</h1>
-      <p className="mt-2 max-w-sm text-sm text-zinc-500">
-        The page you&apos;re looking for was never dispatched. Head back to the Driver Registry to keep moving.
-      </p>
-      <NavLink
-        to="/drivers"
-        className="mt-6 inline-flex items-center gap-2 rounded-lg bg-indigo-500 px-4 py-2.5 text-sm font-semibold text-zinc-50 hover:bg-indigo-400"
-      >
+      <NavLink to="/drivers" className="mt-6 inline-flex items-center gap-2 rounded-lg bg-indigo-500 px-4 py-2.5 text-sm font-semibold text-zinc-50 hover:bg-indigo-400">
         ← Back to Driver Registry
       </NavLink>
     </div>
@@ -122,6 +113,8 @@ function AppShell() {
           <Route path="/drivers" element={<ProtectedRoute><Drivers /></ProtectedRoute>} />
           <Route path="/trips/new" element={<ProtectedRoute><CreateTrip /></ProtectedRoute>} />
           <Route path="/trips" element={<ProtectedRoute><TripList /></ProtectedRoute>} />
+          <Route path="/fuel-expenses" element={<ProtectedRoute><FuelExpenses /></ProtectedRoute>} />
+          <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
           <Route path="/vehicles" element={<ProtectedRoute><Vehicles /></ProtectedRoute>} />
           <Route path="/maintenance-logs" element={<ProtectedRoute><MaintenanceLogs /></ProtectedRoute>} />
           <Route path="*" element={<NotFound />} />

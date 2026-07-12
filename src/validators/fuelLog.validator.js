@@ -12,4 +12,14 @@ const createFuelLogSchema = z.object({
   log_date: z.coerce.date().optional(),
 });
 
-module.exports = { createFuelLogSchema };
+/**
+ * Query-string filters for GET /api/fuel-logs. All optional — an empty
+ * query returns every fuel log.
+ */
+const listFuelLogsQuerySchema = z.object({
+  vehicle_id: z.coerce.number().int().positive().optional(),
+  from: z.coerce.date().optional(),
+  to: z.coerce.date().optional(),
+});
+
+module.exports = { createFuelLogSchema, listFuelLogsQuerySchema };
