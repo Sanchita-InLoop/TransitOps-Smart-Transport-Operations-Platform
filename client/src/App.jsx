@@ -5,13 +5,17 @@ import { BrowserRouter, Routes, Route, Navigate, NavLink } from 'react-router-do
 
 import Drivers from './pages/Drivers';
 import TripList from './pages/TripList';
-import CreateTrip from './pages/CreateTrip';
+import CreateTrip from './pages/Createtrip';
+import Dashboard from './pages/Dashboard';
+import Vehicles from './pages/Vehicles';
 
 // ============================================================================
 // Sidebar navigation config — single source of truth for the nav links so
 // the sidebar and any future breadcrumbs/mobile nav can share it.
 // ============================================================================
 const NAV_ITEMS = [
+  { to: '/dashboard', label: 'Dashboard', icon: '📊' },
+  { to: '/vehicles', label: 'Vehicles', icon: '🚛' },
   { to: '/drivers', label: 'Driver Registry', icon: '📋' },
   { to: '/trips/new', label: 'Dispatch New Trip', icon: '🚚' },
   { to: '/trips', label: 'Trip Monitor', icon: '🔄' },
@@ -34,7 +38,7 @@ function Sidebar() {
       {/* Nav */}
       <nav className="flex-1 space-y-1 px-3 py-4">
         <p className="px-2.5 pb-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-600">
-          Drivers &amp; Trips
+          Fleet Management
         </p>
         {NAV_ITEMS.map((item) => (
           <NavLink
@@ -57,7 +61,7 @@ function Sidebar() {
 
       {/* Footer */}
       <div className="border-t border-zinc-800 px-5 py-4">
-        <p className="text-[11px] text-zinc-600">Person B module · Drivers &amp; Trips</p>
+        <p className="text-[11px] text-zinc-600">TransitOps · Smart Transport Platform</p>
       </div>
     </aside>
   );
@@ -69,13 +73,13 @@ function NotFound() {
       <p className="text-xs font-semibold uppercase tracking-widest text-zinc-600">Error 404</p>
       <h1 className="mt-3 text-3xl font-semibold text-zinc-100">This route doesn&apos;t exist.</h1>
       <p className="mt-2 max-w-sm text-sm text-zinc-500">
-        The page you&apos;re looking for was never dispatched. Head back to the Driver Registry to keep moving.
+        The page you&apos;re looking for was never dispatched. Head back to the Dashboard to keep moving.
       </p>
       <NavLink
-        to="/drivers"
+        to="/dashboard"
         className="mt-6 inline-flex items-center gap-2 rounded-lg bg-indigo-500 px-4 py-2.5 text-sm font-semibold text-zinc-50 hover:bg-indigo-400"
       >
-        ← Back to Driver Registry
+        ← Back to Dashboard
       </NavLink>
     </div>
   );
@@ -88,7 +92,9 @@ export default function App() {
         <Sidebar />
         <main className="flex-1 overflow-y-auto">
           <Routes>
-            <Route path="/" element={<Navigate to="/drivers" replace />} />
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/vehicles" element={<Vehicles />} />
             <Route path="/drivers" element={<Drivers />} />
             <Route path="/trips/new" element={<CreateTrip />} />
             <Route path="/trips" element={<TripList />} />
