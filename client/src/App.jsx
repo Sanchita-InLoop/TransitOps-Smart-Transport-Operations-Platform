@@ -6,21 +6,20 @@ import { BrowserRouter, Routes, Route, Navigate, NavLink } from 'react-router-do
 import Drivers from './pages/Drivers';
 import TripList from './pages/TripList';
 import CreateTrip from './pages/CreateTrip';
+import FuelExpenses from './pages/FuelExpenses';
+import Reports from './pages/Reports';
 
-// ============================================================================
-// Sidebar navigation config — single source of truth for the nav links so
-// the sidebar and any future breadcrumbs/mobile nav can share it.
-// ============================================================================
 const NAV_ITEMS = [
   { to: '/drivers', label: 'Driver Registry', icon: '📋' },
   { to: '/trips/new', label: 'Dispatch New Trip', icon: '🚚' },
   { to: '/trips', label: 'Trip Monitor', icon: '🔄' },
+  { to: '/fuel-expenses', label: 'Fuel & Expenses', icon: '⛽' },
+  { to: '/reports', label: 'Reports', icon: '📊' },
 ];
 
 function Sidebar() {
   return (
     <aside className="flex h-screen w-64 flex-shrink-0 flex-col border-r border-zinc-800 bg-zinc-900">
-      {/* Brand */}
       <div className="flex items-center gap-2.5 border-b border-zinc-800 px-5 py-5">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-500/15 text-indigo-400 ring-1 ring-indigo-500/30">
           <span className="text-sm font-bold">T</span>
@@ -31,11 +30,7 @@ function Sidebar() {
         </div>
       </div>
 
-      {/* Nav */}
       <nav className="flex-1 space-y-1 px-3 py-4">
-        <p className="px-2.5 pb-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-600">
-          Drivers &amp; Trips
-        </p>
         {NAV_ITEMS.map((item) => (
           <NavLink
             key={item.to}
@@ -55,9 +50,8 @@ function Sidebar() {
         ))}
       </nav>
 
-      {/* Footer */}
       <div className="border-t border-zinc-800 px-5 py-4">
-        <p className="text-[11px] text-zinc-600">Person B module · Drivers &amp; Trips</p>
+        <p className="text-[11px] text-zinc-600">TransitOps · Fleet Console</p>
       </div>
     </aside>
   );
@@ -68,13 +62,7 @@ function NotFound() {
     <div className="flex h-full flex-1 flex-col items-center justify-center bg-zinc-950 px-6 text-center">
       <p className="text-xs font-semibold uppercase tracking-widest text-zinc-600">Error 404</p>
       <h1 className="mt-3 text-3xl font-semibold text-zinc-100">This route doesn&apos;t exist.</h1>
-      <p className="mt-2 max-w-sm text-sm text-zinc-500">
-        The page you&apos;re looking for was never dispatched. Head back to the Driver Registry to keep moving.
-      </p>
-      <NavLink
-        to="/drivers"
-        className="mt-6 inline-flex items-center gap-2 rounded-lg bg-indigo-500 px-4 py-2.5 text-sm font-semibold text-zinc-50 hover:bg-indigo-400"
-      >
+      <NavLink to="/drivers" className="mt-6 inline-flex items-center gap-2 rounded-lg bg-indigo-500 px-4 py-2.5 text-sm font-semibold text-zinc-50 hover:bg-indigo-400">
         ← Back to Driver Registry
       </NavLink>
     </div>
@@ -92,6 +80,8 @@ export default function App() {
             <Route path="/drivers" element={<Drivers />} />
             <Route path="/trips/new" element={<CreateTrip />} />
             <Route path="/trips" element={<TripList />} />
+            <Route path="/fuel-expenses" element={<FuelExpenses />} />
+            <Route path="/reports" element={<Reports />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </main>
