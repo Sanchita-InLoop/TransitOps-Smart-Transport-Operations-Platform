@@ -50,7 +50,7 @@ exports.login = catchAsync(async (req, res, next) => {
 
   // Same generic message for "no such user" and "wrong password" —
   // avoids leaking which emails are registered.
-  if (!user) return next(new ApiError.unauthorized( 'Invalid email or password'));
+  if (!user) return next(ApiError.unauthorized( 'Invalid email or password'));
 
   const isMatch = await bcrypt.compare(password, user.password_hash);
   if (!isMatch) return next(new ApiError.unauthorized( 'Invalid email or password'));

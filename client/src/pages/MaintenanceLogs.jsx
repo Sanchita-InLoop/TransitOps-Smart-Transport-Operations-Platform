@@ -1,27 +1,8 @@
 'use strict';
 
-import React, { useState, useMemo } from 'react';
-
-// ============================================================================
-// Mock data — swap for real fetch('/api/vehicles') + fetch('/api/maintenance-logs')
-// calls when wiring up the backend. This local `vehicles` list simulates the
-// status flip your backend already does transactionally: opening a log sets
-// the vehicle to 'in_shop', closing it sets it back to 'available' — UNLESS
-// the vehicle is 'retired', in which case status never changes.
-// ============================================================================
-const initialVehicles = [
-  { id: 'v1', model_name: 'Tata Starbus', status: 'available' },
-  { id: 'v2', model_name: 'Ashok Leyland Dost', status: 'in_shop' },
-  { id: 'v3', model_name: 'Mahindra Bolero Pickup', status: 'available' },
-  { id: 'v4', model_name: 'Force Traveller', status: 'retired' },
-  { id: 'v5', model_name: 'Eicher Pro 2049', status: 'available' },
-];
-
-const initialLogs = [
-  { id: 'm1', vehicle_id: 'v2', description: 'Brake pad replacement and inspection', opened_at: '2026-07-08', closed_at: null },
-  { id: 'm2', vehicle_id: 'v1', description: 'Routine 10,000km service', opened_at: '2026-06-20', closed_at: '2026-06-22' },
-  { id: 'm3', vehicle_id: 'v4', description: 'Final inspection before decommissioning', opened_at: '2026-05-01', closed_at: '2026-05-03' },
-];
+import React, { useState, useMemo, useEffect } from 'react';
+import { getVehicles } from '../api/vehicle';
+import { getMaintenanceLogs, openMaintenanceLog, closeMaintenanceLog } from '../api/maintenanceLogs';
 
 function validateLogForm(values) {
   const errors = {};
@@ -36,6 +17,13 @@ function validateLogForm(values) {
     errors.description = 'Description must be 500 characters or fewer.';
   }
 
+  const cost = Number(values.cost);
+  if (values.cost === '' || values.cost === null) {
+    errors.cost = 'Estimated cost is required.';
+  } else if (Number.isNaN(cost) || cost < 0) {
+    errors.cost = 'Cost must be zero or a positive number.';
+  }
+
   return errors;
 }
 
@@ -46,8 +34,10 @@ function formatDate(dateStr) {
   return d.toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
-function todayISO() {
-  return new Date().toISOString().slice(0, 10);
+function formatCurrency(value) {
+  const n = Number(value);
+  if (Number.isNaN(n)) return '—';
+  return n.toLocaleString('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 });
 }
 
 // ============================================================================
@@ -88,12 +78,13 @@ function IconAlert(props) {
 // Drawer form — Open New Log
 // ============================================================================
 function LogFormDrawer({ open, onClose, onSubmit, vehicles }) {
-  const emptyForm = { vehicle_id: '', description: '' };
+  const emptyForm = { vehicle_id: '', description: '', cost: '' };
   const [values, setValues] = useState(emptyForm);
   const [errors, setErrors] = useState({});
   const [submitAttempted, setSubmitAttempted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (open) {
       setValues(emptyForm);
       setErrors({});
@@ -117,14 +108,20 @@ function LogFormDrawer({ open, onClose, onSubmit, vehicles }) {
     }
   }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault();
     setSubmitAttempted(true);
     const validationErrors = validateLogForm(values);
     setErrors(validationErrors);
     if (Object.keys(validationErrors).length > 0) return;
 
-    onSubmit({ ...values, description: values.description.trim() });
+    setIsSubmitting(true);
+    await onSubmit({
+      ...values,
+      description: values.description.trim(),
+      cost: Number(values.cost)
+    });
+    setIsSubmitting(false);
   }
 
   const errorCount = Object.keys(errors).length;
@@ -166,10 +163,21 @@ function LogFormDrawer({ open, onClose, onSubmit, vehicles }) {
                 <option value="">Select vehicle…</option>
                 {vehicles.map((v) => (
                   <option key={v.id} value={v.id} disabled={v.status === 'in_shop'}>
-                    {v.model_name} {v.status === 'in_shop' ? '(already in shop)' : v.status === 'retired' ? '(retired)' : ''}
+                    {v.model_name} {v.registration_number ? `(${v.registration_number})` : ''} {v.status === 'in_shop' ? '- IN SHOP' : v.status === 'retired' ? '- RETIRED' : ''}
                   </option>
                 ))}
               </select>
+            </Field>
+
+            <Field label="Estimated Cost (₹)" error={errors.cost}>
+              <input
+                type="number"
+                min={0}
+                value={values.cost}
+                onChange={(e) => handleChange('cost', e.target.value)}
+                placeholder="e.g. 15000"
+                className={inputClasses(errors.cost)}
+              />
             </Field>
 
             <Field label="Description" error={errors.description}>
@@ -191,11 +199,11 @@ function LogFormDrawer({ open, onClose, onSubmit, vehicles }) {
           </div>
 
           <div className="flex gap-3 border-t border-zinc-800 px-6 py-4">
-            <button type="button" onClick={onClose} className="flex-1 rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2.5 text-sm font-medium text-zinc-300 hover:bg-zinc-800">
+            <button type="button" onClick={onClose} disabled={isSubmitting} className="flex-1 rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2.5 text-sm font-medium text-zinc-300 hover:bg-zinc-800 disabled:opacity-50">
               Cancel
             </button>
-            <button type="submit" className="flex-1 rounded-lg bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-zinc-950 hover:bg-emerald-400">
-              Open Log
+            <button type="submit" disabled={isSubmitting} className="flex-1 rounded-lg bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-zinc-950 hover:bg-emerald-400 disabled:opacity-50">
+              {isSubmitting ? 'Opening...' : 'Open Log'}
             </button>
           </div>
         </form>
@@ -228,11 +236,29 @@ function inputClasses(error) {
 // Main page
 // ============================================================================
 export default function MaintenanceLogs() {
-  const [vehicles, setVehicles] = useState(initialVehicles);
-  const [logs, setLogs] = useState(initialLogs);
+  const [vehicles, setVehicles] = useState([]);
+  const [logs, setLogs] = useState([]);
   const [statusFilter, setStatusFilter] = useState('all'); // all | open | closed
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [toast, setToast] = useState(null);
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  async function fetchData() {
+    try {
+      const [vData, lData] = await Promise.all([
+        getVehicles(),
+        getMaintenanceLogs()
+      ]);
+      setVehicles(vData);
+      setLogs(lData);
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      showToast('Failed to load maintenance data.');
+    }
+  }
 
   const vehicleById = useMemo(() => {
     const map = new Map();
@@ -256,36 +282,27 @@ export default function MaintenanceLogs() {
     showToast._t = window.setTimeout(() => setToast(null), 2500);
   }
 
-  // Mirrors the backend's transactional rule: opening a log flips the vehicle
-  // to 'in_shop' unless it's 'retired', in which case status is left alone.
-  function handleOpenLog({ vehicle_id, description }) {
-    const newLog = {
-      id: `m${Date.now()}`,
-      vehicle_id,
-      description,
-      opened_at: todayISO(),
-      closed_at: null,
-    };
-    setLogs((prev) => [newLog, ...prev]);
-
-    setVehicles((prev) =>
-      prev.map((v) => (v.id === vehicle_id && v.status !== 'retired' ? { ...v, status: 'in_shop' } : v))
-    );
-
-    showToast('Maintenance log opened.');
-    setDrawerOpen(false);
+  async function handleOpenLog(values) {
+    try {
+      await openMaintenanceLog(values);
+      await fetchData(); // Refresh everything to get exact DB state & updated vehicle status
+      showToast('Maintenance log opened.');
+      setDrawerOpen(false);
+    } catch (error) {
+      console.error('Error opening log:', error);
+      showToast('Failed to open log.');
+    }
   }
 
-  // Mirrors the backend's transactional rule: closing a log flips the vehicle
-  // back to 'available' unless it's 'retired'.
-  function handleCloseLog(log) {
-    setLogs((prev) => prev.map((l) => (l.id === log.id ? { ...l, closed_at: todayISO() } : l)));
-
-    setVehicles((prev) =>
-      prev.map((v) => (v.id === log.vehicle_id && v.status !== 'retired' ? { ...v, status: 'available' } : v))
-    );
-
-    showToast('Maintenance log closed.');
+  async function handleCloseLog(log) {
+    try {
+      await closeMaintenanceLog(log.id);
+      await fetchData(); // Refresh everything to get exact DB state & updated vehicle status
+      showToast('Maintenance log closed.');
+    } catch (error) {
+      console.error('Error closing log:', error);
+      showToast('Failed to close log.');
+    }
   }
 
   return (
@@ -326,6 +343,7 @@ export default function MaintenanceLogs() {
                 <tr className="border-b border-zinc-800 text-xs uppercase tracking-wide text-zinc-500">
                   <th className="px-4 py-3 font-medium">Vehicle</th>
                   <th className="px-4 py-3 font-medium">Description</th>
+                  <th className="px-4 py-3 font-medium">Cost</th>
                   <th className="px-4 py-3 font-medium">Opened</th>
                   <th className="px-4 py-3 font-medium">Closed</th>
                   <th className="px-4 py-3 font-medium">Log Status</th>
@@ -347,6 +365,7 @@ export default function MaintenanceLogs() {
                         )}
                       </td>
                       <td className="px-4 py-3 text-zinc-400">{log.description}</td>
+                      <td className="px-4 py-3 text-zinc-400">{log.cost != null ? formatCurrency(log.cost) : '—'}</td>
                       <td className="px-4 py-3 text-zinc-400">{formatDate(log.opened_at)}</td>
                       <td className="px-4 py-3 text-zinc-400">{formatDate(log.closed_at)}</td>
                       <td className="px-4 py-3"><LogStatusBadge isOpen={isOpen} /></td>
@@ -369,7 +388,7 @@ export default function MaintenanceLogs() {
 
                 {filteredLogs.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="px-4 py-10 text-center text-sm text-zinc-500">
+                    <td colSpan={7} className="px-4 py-10 text-center text-sm text-zinc-500">
                       No maintenance logs match this filter.
                     </td>
                   </tr>
