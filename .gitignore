@@ -63,8 +63,3 @@ coverage/
 .playwright/
 cypress/videos/
 cypress/screenshots/
-=======
-node_modules/
-.env
-.DS_Store
->>>>>>> 0eba75ec5aa620dedd5d0268115584aceea383c2
