@@ -4,7 +4,7 @@ const ApiError = require('../utils/ApiError');
 module.exports = (req, res, next) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return next(new ApiError.unauthorized( 'No token provided'));
+    return next(ApiError.unauthorized('No token provided'));
   }
 
   const token = authHeader.split(' ')[1];
@@ -13,6 +13,6 @@ module.exports = (req, res, next) => {
     req.user = { id: decoded.id, role: decoded.role };
     next();
   } catch (err) {
-    return next(new ApiError.unauthorized( 'Invalid or expired token'));
+    return next(ApiError.unauthorized('Invalid or expired token'));
   }
 };
