@@ -48,6 +48,15 @@ function errorHandler(err, req, res, next) {
     if (mapped) error = mapped;
   }
 
+  // Malformed request bodies surfaced by express.json()/body-parser
+  // (e.g. a client sending `{"a":,}` or truncated JSON). These arrive as
+  // a raw SyntaxError with `type: 'entity.parse.failed'` and would
+  // otherwise fall through to the generic 500 below — clearly a client
+  // mistake, not a server fault, so it belongs at 400.
+  if (err.type === 'entity.parse.failed') {
+    error = ApiError.badRequest('Request body contains invalid JSON.');
+  }
+
   // Malformed/expired JWTs surfaced by jsonwebtoken.
   if (err.name === 'JsonWebTokenError') {
     error = ApiError.unauthorized('Invalid authentication token.');
