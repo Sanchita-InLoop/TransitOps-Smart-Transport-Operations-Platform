@@ -1,4 +1,4 @@
-/**
+﻿/**
  * api/client.js
  * Central fetch wrapper. Automatically attaches the JWT from localStorage
  * and returns parsed JSON. Throws on non-2xx responses with the server's

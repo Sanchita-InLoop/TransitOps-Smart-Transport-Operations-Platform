@@ -41,28 +41,28 @@ export default function Login() {
 
         {/* Brand */}
         <div className="mb-8 flex flex-col items-center gap-3">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-500/15 ring-1 ring-indigo-500/30">
-            <IconTruck className="h-7 w-7 text-indigo-400" />
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-500/15 ring-1 ring-indigo-500/30">
+            <IconTruck className="h-8 w-8 text-indigo-400" />
           </div>
           <div className="text-center">
-            <h1 className="text-xl font-semibold text-zinc-50">TransitOps</h1>
-            <p className="mt-0.5 text-sm text-zinc-500">Fleet &amp; Dispatch Console</p>
+            <h1 className="text-2xl font-semibold text-zinc-50">TransitOps</h1>
+            <p className="mt-1 text-base text-zinc-500">Fleet &amp; Dispatch Console</p>
           </div>
         </div>
 
         {/* Card */}
-        <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6 shadow-2xl">
-          <h2 className="mb-5 text-sm font-semibold text-zinc-200">Sign in to your account</h2>
+        <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-8 shadow-2xl">
+          <h2 className="mb-6 text-base font-semibold text-zinc-200">Sign in to your account</h2>
 
           {error && (
-            <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2.5 text-sm text-red-300">
+            <div className="mb-5 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-base text-red-300">
               {error}
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-5">
             <label className="block">
-              <span className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-zinc-400">Email</span>
+              <span className="mb-2 block text-sm font-medium uppercase tracking-wide text-zinc-400">Email</span>
               <input
                 id="email"
                 type="email"
@@ -71,12 +71,12 @@ export default function Login() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
-                className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2.5 text-sm text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-indigo-500/60 focus:ring-1 focus:ring-indigo-500/30"
+                className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-4 py-3 text-base text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-indigo-500/60 focus:ring-1 focus:ring-indigo-500/30"
               />
             </label>
 
             <label className="block">
-              <span className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-zinc-400">Password</span>
+              <span className="mb-2 block text-sm font-medium uppercase tracking-wide text-zinc-400">Password</span>
               <input
                 id="password"
                 type="password"
@@ -85,14 +85,14 @@ export default function Login() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2.5 text-sm text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-indigo-500/60 focus:ring-1 focus:ring-indigo-500/30"
+                className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-4 py-3 text-base text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-indigo-500/60 focus:ring-1 focus:ring-indigo-500/30"
               />
             </label>
 
             <button
               type="submit"
               disabled={loading}
-              className="mt-2 w-full rounded-lg bg-indigo-500 py-2.5 text-sm font-semibold text-zinc-50 transition hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-60"
+              className="mt-3 w-full rounded-lg bg-indigo-500 py-3 text-base font-semibold text-zinc-50 transition hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {loading ? 'Signing in…' : 'Sign In'}
             </button>

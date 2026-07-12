@@ -1,4 +1,4 @@
-'use strict';
+﻿'use strict';
 
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate, NavLink, useNavigate } from 'react-router-dom';
@@ -15,11 +15,11 @@ import TripList   from './pages/TripList';
 // Sidebar navigation
 // ============================================================================
 const NAV_ITEMS = [
-  { to: '/dashboard',  label: 'Dashboard',       icon: '📊' },
-  { to: '/vehicles',   label: 'Vehicles',         icon: '🚛' },
-  { to: '/drivers',    label: 'Driver Registry',  icon: '📋' },
-  { to: '/trips/new',  label: 'Dispatch Trip',    icon: '🚚' },
-  { to: '/trips',      label: 'Trip Monitor',     icon: '🔄' },
+  { to: '/dashboard',  label: 'Dashboard',       icon: '≡ƒôè' },
+  { to: '/vehicles',   label: 'Vehicles',         icon: '≡ƒÜ¢' },
+  { to: '/drivers',    label: 'Driver Registry',  icon: '≡ƒôï' },
+  { to: '/trips/new',  label: 'Dispatch Trip',    icon: '≡ƒÜÜ' },
+  { to: '/trips',      label: 'Trip Monitor',     icon: '≡ƒöä' },
 ];
 
 function Sidebar() {
@@ -90,7 +90,7 @@ function Sidebar() {
 }
 
 // ============================================================================
-// Protected route — redirects to /login if not authenticated
+// Protected route ΓÇö redirects to /login if not authenticated
 // ============================================================================
 function ProtectedRoute({ children }) {
   const { isAuthenticated } = useAuth();
@@ -126,7 +126,7 @@ function NotFound() {
       <p className="text-xs font-semibold uppercase tracking-widest text-zinc-600">Error 404</p>
       <h1 className="mt-3 text-3xl font-semibold text-zinc-100">Page not found.</h1>
       <NavLink to="/dashboard" className="mt-6 inline-flex items-center gap-2 rounded-lg bg-indigo-500 px-4 py-2.5 text-sm font-semibold text-zinc-50 hover:bg-indigo-400">
-        ← Back to Dashboard
+        ΓåÉ Back to Dashboard
       </NavLink>
     </div>
   );

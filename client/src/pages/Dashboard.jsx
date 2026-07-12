@@ -89,16 +89,22 @@ export default function Dashboard() {
 
   useEffect(() => {
     setLoading(true);
+    
+    // We catch errors individually so a 403 on analytics doesn't break the whole dashboard
+    const safeGet = (endpoint) => api.get(endpoint).catch((err) => {
+      console.warn(`Failed to fetch ${endpoint}:`, err.message);
+      return null;
+    });
+
     Promise.all([
-      api.get('/dashboard/kpis'),
-      api.get('/reports/analytics'),
-      api.get('/trips'),
-      api.get('/drivers'),
+      safeGet('/dashboard/kpis'),
+      safeGet('/reports/analytics'),
+      safeGet('/trips'),
+      safeGet('/drivers'),
     ])
       .then(([kpisData, analyticsData, tripsData, driversData]) => {
         setKpis(kpisData);
         setAnalytics(analyticsData);
-        // Most recent 5 trips
         setRecentTrips((tripsData ?? []).slice(0, 5));
         setDrivers(driversData ?? []);
       })
