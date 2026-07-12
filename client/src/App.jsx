@@ -6,6 +6,8 @@ import { BrowserRouter, Routes, Route, Navigate, NavLink } from 'react-router-do
 import Drivers from './pages/Drivers';
 import TripList from './pages/TripList';
 import CreateTrip from './pages/CreateTrip';
+import Vehicles from './pages/Vehicles';
+import MaintenanceLogs from './pages/MaintenanceLogs';
 
 // ============================================================================
 // Sidebar navigation config — single source of truth for the nav links so
@@ -15,6 +17,10 @@ const NAV_ITEMS = [
   { to: '/drivers', label: 'Driver Registry', icon: '📋' },
   { to: '/trips/new', label: 'Dispatch New Trip', icon: '🚚' },
   { to: '/trips', label: 'Trip Monitor', icon: '🔄' },
+];
+const FLEET_NAV_ITEMS = [
+  { to: '/vehicles', label: 'Vehicle Registry', icon: '🚌' },
+  { to: '/maintenance-logs', label: 'Maintenance Logs', icon: '🔧' },
 ];
 
 function Sidebar() {
@@ -33,27 +39,49 @@ function Sidebar() {
 
       {/* Nav */}
       <nav className="flex-1 space-y-1 px-3 py-4">
-        <p className="px-2.5 pb-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-600">
-          Drivers &amp; Trips
-        </p>
-        {NAV_ITEMS.map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            className={({ isActive }) =>
-              [
-                'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition',
-                isActive
-                  ? 'bg-zinc-800 text-zinc-50 ring-1 ring-zinc-700'
-                  : 'text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200',
-              ].join(' ')
-            }
-          >
-            <span aria-hidden="true" className="text-base leading-none">{item.icon}</span>
-            {item.label}
-          </NavLink>
-        ))}
-      </nav>
+  <p className="px-2.5 pb-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-600">
+    Drivers &amp; Trips
+  </p>
+  {NAV_ITEMS.map((item) => (
+    <NavLink
+      key={item.to}
+      to={item.to}
+      className={({ isActive }) =>
+        [
+          'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition',
+          isActive
+            ? 'bg-zinc-800 text-zinc-50 ring-1 ring-zinc-700'
+            : 'text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200',
+        ].join(' ')
+      }
+    >
+      <span aria-hidden="true" className="text-base leading-none">{item.icon}</span>
+      {item.label}
+    </NavLink>
+  ))}
+
+  <p className="px-2.5 pb-2 pt-4 text-[10px] font-semibold uppercase tracking-wider text-zinc-600">
+    Fleet &amp; Maintenance
+  </p>
+  {FLEET_NAV_ITEMS.map((item) => (
+    <NavLink
+      key={item.to}
+      to={item.to}
+      className={({ isActive }) =>
+        [
+          'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition',
+          isActive
+            ? 'bg-zinc-800 text-zinc-50 ring-1 ring-zinc-700'
+            : 'text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200',
+        ].join(' ')
+      }
+    >
+      <span aria-hidden="true" className="text-base leading-none">{item.icon}</span>
+      {item.label}
+    </NavLink>
+     ))}
+   </nav>
+      
 
       {/* Footer */}
       <div className="border-t border-zinc-800 px-5 py-4">
@@ -92,6 +120,8 @@ export default function App() {
             <Route path="/drivers" element={<Drivers />} />
             <Route path="/trips/new" element={<CreateTrip />} />
             <Route path="/trips" element={<TripList />} />
+            <Route path="/vehicles" element={<Vehicles />} />
+            <Route path="/maintenance-logs" element={<MaintenanceLogs />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </main>
