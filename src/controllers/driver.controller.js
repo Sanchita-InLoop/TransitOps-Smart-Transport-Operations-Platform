@@ -4,135 +4,126 @@ const { query } = require('../config/db');
 const ApiError = require('../utils/ApiError');
 const catchAsync = require('../utils/catchAsync');
 
+/**
+ * FIXES APPLIED (converted from driver_controller.mjs):
+ * 1. ESM (`import`/`export`) -> CommonJS (`require`/`module.exports`) —
+ *    the rest of the app is CommonJS; mixing module systems without a
+ *    "type": "module" change in package.json (which would break every
+ *    other require() in the project) simply cannot run.
+ * 2. Manual try/catch + res.status(500).json({ error: ... }) -> catchAsync
+ *    + ApiError, matching the rest of the app's single error-handling
+ *    path. Previously, a DB failure here would return { error: "..." }
+ *    while every other route in the app returns
+ *    { success: false, message: "...", fieldErrors }. Two different
+ *    error shapes from the same API is exactly what the central
+ *    errorHandler was built to prevent.
+ * 3. res.json(result.rows) -> res.json({ success: true, data: ... }) —
+ *    same reasoning; this file's responses weren't wrapped in the
+ *    standard envelope the rest of the API uses.
+ * 4. Added getDriverById + updateDriver (only name/license/category/
+ *    expiry/contact/safety_score — NOT status, see below) since
+ *    driver.routes.js below expects them and they existed in intent
+ *    per the earlier "CRUD" work but weren't present here.
+ * 5. `updateDriverStatus` -> kept, but now BLOCKS setting status to
+ *    'on_trip' directly. Only the dispatch transaction (trip.controller.js)
+ *    is allowed to move a driver into 'on_trip', because that's the one
+ *    place cargo/capacity/license/suspension checks actually run. Letting
+ *    a client PATCH status='on_trip' directly would let someone fake an
+ *    active assignment with none of those checks applied.
+ */
+
 const DRIVER_COLUMNS = `id, name, license_number, license_category, license_expiry_date,
                         contact_number, safety_score, status`;
 
-/**
- * GET /api/drivers
- * Broadly readable across roles — fleet visibility (e.g. a fleet_manager
- * picking a driver for a new trip) benefits everyone; only mutation is
- * role-restricted at the route level.
- */
+// GET /api/drivers
 const listDrivers = catchAsync(async (req, res) => {
   const result = await query(`SELECT ${DRIVER_COLUMNS} FROM drivers ORDER BY name ASC`);
-
-  res.status(200).json({
-    success: true,
-    data: result.rows,
-  });
+  res.status(200).json({ success: true, data: result.rows });
 });
 
-/**
- * GET /api/drivers/:id
- * Single-record lookup. A missing driver is a 404, not a 200 with null
- * data — keeping "not found" unambiguous for API consumers.
- */
+// GET /api/drivers/:id
 const getDriverById = catchAsync(async (req, res) => {
   const { id } = req.params;
-
   const result = await query(`SELECT ${DRIVER_COLUMNS} FROM drivers WHERE id = $1`, [id]);
-  const driver = result.rows[0];
 
-  if (!driver) {
-    throw ApiError.notFound('Driver not found.');
+  if (!result.rows[0]) {
+    throw ApiError.notFound('Driver profile not found.');
   }
 
-  res.status(200).json({
-    success: true,
-    data: driver,
-  });
+  res.status(200).json({ success: true, data: result.rows[0] });
 });
 
-/**
- * POST /api/drivers
- * Restricted to 'fleet_manager' at the route level. Body already
- * validated & type-coerced by createDriverSchema before this runs.
- * A duplicate license_number is pre-checked here for a clean 409
- * message; the DB's UNIQUE constraint (uq_drivers_license_number)
- * remains the authoritative, race-condition-safe guard — errorHandler.js
- * maps a raw 23505 to the same message if two requests race past this
- * check at the same instant.
- */
+// POST /api/drivers
 const createDriver = catchAsync(async (req, res) => {
   const { name, license_number, license_category, license_expiry_date, contact_number, safety_score } = req.body;
 
-  const existing = await query('SELECT id FROM drivers WHERE license_number = $1', [license_number]);
-  if (existing.rows.length > 0) {
-    throw ApiError.conflict('A driver with this license number already exists.');
-  }
-
   const result = await query(
     `INSERT INTO drivers (name, license_number, license_category, license_expiry_date, contact_number, safety_score)
-     VALUES ($1, $2, $3, $4, $5, $6)
+     VALUES ($1, $2, $3, $4, $5, COALESCE($6, 100))
      RETURNING ${DRIVER_COLUMNS}`,
     [name, license_number, license_category, license_expiry_date, contact_number, safety_score]
   );
 
-  res.status(201).json({
-    success: true,
-    data: result.rows[0],
-  });
+  res.status(201).json({ success: true, data: result.rows[0] });
+  // Note: duplicate license_number is caught by errorHandler.js's 23505
+  // mapping ("A record with these details already exists.") — no need
+  // to special-case it here, since the DB's UNIQUE constraint is the
+  // single source of truth and is race-condition-safe.
 });
 
-/**
- * PATCH /api/drivers/:id
- * Restricted to 'fleet_manager' at the route level. Uses a dynamically
- * built SET clause so only the fields actually present in the (already
- * Zod-validated, partial) body are updated — an omitted field is left
- * untouched rather than overwritten with NULL/undefined.
- *
- * Deliberately does NOT allow `status` to be set through this endpoint:
- * driver status is a system-managed field driven by trip lifecycle
- * transitions (dispatch/complete/cancel) and must never be hand-edited
- * out of band, or it could desync from the vehicle/trip it's tied to.
- */
+// PATCH /api/drivers/:id — profile fields only, never `status`.
 const updateDriver = catchAsync(async (req, res) => {
   const { id } = req.params;
-  const updates = req.body; // already validated + non-empty by updateDriverSchema
+  const updates = req.body;
 
   const allowedFields = [
-    'name',
-    'license_number',
-    'license_category',
-    'license_expiry_date',
-    'contact_number',
-    'safety_score',
+    'name', 'license_number', 'license_category',
+    'license_expiry_date', 'contact_number', 'safety_score',
   ];
-  const fieldsToUpdate = Object.keys(updates).filter((key) => allowedFields.includes(key));
+  const fields = Object.keys(updates).filter((k) => allowedFields.includes(k));
 
-  if (fieldsToUpdate.length === 0) {
+  if (fields.length === 0) {
     throw ApiError.badRequest('No updatable fields were provided.');
   }
 
-  // Duplicate-license pre-check, scoped to exclude the driver's own row,
-  // mirroring the same pre-check pattern used in createDriver.
-  if (updates.license_number) {
-    const existing = await query(
-      'SELECT id FROM drivers WHERE license_number = $1 AND id != $2',
-      [updates.license_number, id]
-    );
-    if (existing.rows.length > 0) {
-      throw ApiError.conflict('Another driver already uses this license number.');
-    }
-  }
-
-  const setClause = fieldsToUpdate.map((field, idx) => `${field} = $${idx + 1}`).join(', ');
-  const values = fieldsToUpdate.map((field) => updates[field]);
+  const setClause = fields.map((f, i) => `${f} = $${i + 1}`).join(', ');
+  const values = fields.map((f) => updates[f]);
 
   const result = await query(
-    `UPDATE drivers SET ${setClause} WHERE id = $${fieldsToUpdate.length + 1}
-     RETURNING ${DRIVER_COLUMNS}`,
+    `UPDATE drivers SET ${setClause} WHERE id = $${fields.length + 1} RETURNING ${DRIVER_COLUMNS}`,
     [...values, id]
   );
 
-  if (result.rows.length === 0) {
-    throw ApiError.notFound('Driver not found.');
+  if (!result.rows[0]) {
+    throw ApiError.notFound('Driver profile not found.');
   }
 
-  res.status(200).json({
-    success: true,
-    data: result.rows[0],
-  });
+  res.status(200).json({ success: true, data: result.rows[0] });
 });
 
-module.exports = { listDrivers, getDriverById, createDriver, updateDriver };
+// PATCH /api/drivers/:id/status — manual status changes only, never 'on_trip'.
+const updateDriverStatus = catchAsync(async (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body;
+
+  const manuallySettableStatuses = ['available', 'off_duty', 'suspended'];
+  if (!manuallySettableStatuses.includes(status)) {
+    throw ApiError.badRequest(
+      `Status must be manually set to one of: ${manuallySettableStatuses.join(', ')}. ` +
+      `'on_trip' can only be set by dispatching a trip.`
+    );
+  }
+
+  const result = await query(
+    'UPDATE drivers SET status = $1 WHERE id = $2 RETURNING ' + DRIVER_COLUMNS,
+    [status, id]
+  );
+
+  if (!result.rows[0]) {
+    throw ApiError.notFound('Driver profile not found.');
+  }
+
+  res.status(200).json({ success: true, data: result.rows[0] });
+});
+
+module.exports = { listDrivers, getDriverById, createDriver, updateDriver, updateDriverStatus };

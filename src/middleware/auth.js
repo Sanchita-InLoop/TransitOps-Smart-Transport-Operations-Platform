@@ -1,3 +1,5 @@
+'use strict';
+
 const jwt = require('jsonwebtoken');
 const ApiError = require('../utils/ApiError');
 
@@ -10,7 +12,7 @@ module.exports = (req, res, next) => {
   const token = authHeader.split(' ')[1];
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = { id: decoded.id, role: decoded.role };
+    req.user = { id: decoded.sub, email: decoded.email, role: decoded.role };
     next();
   } catch (err) {
     return next(ApiError.unauthorized('Invalid or expired token'));

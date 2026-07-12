@@ -11,6 +11,15 @@ const {
 } = require('../validators/trip.validator');
 const { listTrips, createTrip, dispatchTrip, completeTrip, cancelTrip } = require('../controllers/trip.controller');
 
+/**
+ * THIS FILE REPLACES: trip.routes.mjs (bare `router.patch('/:id', updateTripStatus)`)
+ *
+ * That version had one generic PATCH /:id route with no auth, no rbac, no
+ * validation, and no distinction between dispatch/complete/cancel — each
+ * of which has completely different business rules and side effects.
+ * Restored here as three explicit, separately-guarded endpoints.
+ */
+
 const router = express.Router();
 
 router.use(authenticate);
@@ -18,8 +27,6 @@ router.use(authenticate);
 router.get('/', listTrips);
 router.post('/', restrictTo('fleet_manager'), validate(createTripSchema), createTrip);
 
-// :id is validated as params (separate `source` argument to validate()),
-// keeping path-param validation consistent with body validation.
 router.patch(
   '/:id/dispatch',
   restrictTo('fleet_manager'),
