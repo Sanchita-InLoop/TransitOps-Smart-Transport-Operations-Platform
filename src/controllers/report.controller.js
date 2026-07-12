@@ -26,7 +26,7 @@ async function getVehicleReportRow(vehicleId, revenue = 0) {
   );
   const tripRes = await query(
     `SELECT COALESCE(SUM(planned_distance),0)::float AS total_distance
-     FROM trips WHERE vehicle_id = $1 AND status = 'Completed'`,
+     FROM trips WHERE vehicle_id = $1 AND status = 'completed'`,
     [vehicleId]
   );
 
