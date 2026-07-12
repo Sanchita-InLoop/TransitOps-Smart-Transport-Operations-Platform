@@ -9,6 +9,8 @@ const expenseRoutes = require('./expense.routes');
 const reportRoutes = require('./report.routes');
 const dashboardRoutes = require('./dashboard.routes');
 
+const maintenanceRoutes = require('./maintenance.routes');
+
 const router = express.Router();
 
 // 1. Mount classic CommonJS team routes smoothly
@@ -18,6 +20,7 @@ router.use('/fuel-logs', fuelLogRoutes);
 router.use('/expenses', expenseRoutes);
 router.use('/reports', reportRoutes);
 router.use('/dashboard', dashboardRoutes);
+router.use('/maintenance-logs', maintenanceRoutes);
 
 // 2. Asynchronously load and forward requests to your modern ES Module (.mjs) routes
 router.use('/drivers', async (req, res, next) => {

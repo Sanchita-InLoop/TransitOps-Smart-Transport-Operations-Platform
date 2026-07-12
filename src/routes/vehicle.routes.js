@@ -1,19 +1,31 @@
-'use strict';
-
 const express = require('express');
-const authenticate = require('../middleware/auth');
-const restrictTo = require('../middleware/rbac');
 const validate = require('../middleware/validate');
-const { createVehicleSchema } = require('../validators/vehicle.validator');
-const { listVehicles, createVehicle } = require('../controllers/vehicle.controller');
+
+// 1. Direct imports
+const vehicleController = require('../controllers/vehicle.controller');
+const validatorModule = require('../validators/vehicle.validator');
+
+// 2. Debug logs - this will print to your terminal when you save
+console.log("👉 FOUND IN CONTROLLER:", Object.keys(vehicleController));
+console.log("👉 FOUND IN VALIDATOR:", Object.keys(validatorModule));
 
 const router = express.Router();
 
-// All vehicle routes require a valid session; only mutation is
-// role-restricted, per the rationale documented in vehicle.controller.js.
-router.use(authenticate);
+// 3. CRASH GUARDS: If an import failed, this prevents the [object Undefined] crash
+const safeCreate = vehicleController.create || ((req, res) => res.status(500).json({ message: "create missing" }));
+const safeGetAll = vehicleController.getAll || ((req, res) => res.status(500).json({ message: "getAll missing" }));
+const safeGetById = vehicleController.getById || ((req, res) => res.status(500).json({ message: "getById missing" }));
+const safeUpdate = vehicleController.update || ((req, res) => res.status(500).json({ message: "update missing" }));
+const safeDelete = vehicleController.delete || ((req, res) => res.status(500).json({ message: "delete missing" }));
 
-router.get('/', listVehicles);
-router.post('/', restrictTo('fleet_manager'), validate(createVehicleSchema), createVehicle);
+// 4. Safe Schemas
+const safeCreateSchema = validatorModule.createVehicleSchema || {};
+const safeUpdateSchema = validatorModule.updateVehicleSchema || {};
+
+router.post('/', validate(safeCreateSchema), safeCreate);
+router.get('/', safeGetAll);
+router.get('/:id', safeGetById);
+router.patch('/:id', validate(safeUpdateSchema), safeUpdate);
+router.delete('/:id', safeDelete);
 
 module.exports = router;

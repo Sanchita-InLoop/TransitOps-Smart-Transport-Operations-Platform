@@ -2,7 +2,7 @@ const { query } = require('../config/db');
 const catchAsync = require('../utils/catchAsync');
 const ApiError = require('../utils/ApiError');
 
-exports.create = catchAsync(async (req, res) => {
+const create = catchAsync(async (req, res) => {
   const { 
     registration_number, model_name, type, 
     max_load_capacity, odometer, acquisition_cost 
@@ -19,7 +19,7 @@ exports.create = catchAsync(async (req, res) => {
   res.status(201).json({ success: true, data: result.rows[0] });
 });
 
-exports.getAll = catchAsync(async (req, res) => {
+const getAll = catchAsync(async (req, res) => {
   const { status, type } = req.query;
   let sql = 'SELECT * FROM vehicles WHERE 1=1';
   const params = [];
@@ -39,7 +39,7 @@ exports.getAll = catchAsync(async (req, res) => {
   res.status(200).json({ success: true, data: result.rows });
 });
 
-exports.getById = catchAsync(async (req, res) => {
+const getById = catchAsync(async (req, res) => {
   const { id } = req.params;
   const result = await query('SELECT * FROM vehicles WHERE id = $1', [id]);
   
@@ -50,7 +50,7 @@ exports.getById = catchAsync(async (req, res) => {
   res.status(200).json({ success: true, data: result.rows[0] });
 });
 
-exports.update = catchAsync(async (req, res) => {
+const update = catchAsync(async (req, res) => {
   const { id } = req.params;
   const { 
     registration_number, model_name, type, 
@@ -77,7 +77,7 @@ exports.update = catchAsync(async (req, res) => {
   res.status(200).json({ success: true, data: result.rows[0] });
 });
 
-exports.delete = catchAsync(async (req, res) => {
+const deleteVehicle = catchAsync(async (req, res) => {
   const { id } = req.params;
   const result = await query('DELETE FROM vehicles WHERE id = $1 RETURNING *', [id]);
   
@@ -87,3 +87,12 @@ exports.delete = catchAsync(async (req, res) => {
   
   res.status(200).json({ success: true, data: result.rows[0] });
 });
+
+// THIS IS THE FIX: Grouping them explicitly guarantees they export correctly.
+module.exports = {
+  create,
+  getAll,
+  getById,
+  update,
+  delete: deleteVehicle
+};
