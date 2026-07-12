@@ -1,121 +1,101 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
+'use strict';
 
-function App() {
-  const [count, setCount] = useState(0)
+import React from 'react';
+import { BrowserRouter, Routes, Route, Navigate, NavLink } from 'react-router-dom';
 
+import Drivers from './pages/Drivers';
+import TripList from './pages/TripList';
+import CreateTrip from './pages/CreateTrip';
+
+// ============================================================================
+// Sidebar navigation config — single source of truth for the nav links so
+// the sidebar and any future breadcrumbs/mobile nav can share it.
+// ============================================================================
+const NAV_ITEMS = [
+  { to: '/drivers', label: 'Driver Registry', icon: '📋' },
+  { to: '/trips/new', label: 'Dispatch New Trip', icon: '🚚' },
+  { to: '/trips', label: 'Trip Monitor', icon: '🔄' },
+];
+
+function Sidebar() {
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
+    <aside className="flex h-screen w-64 flex-shrink-0 flex-col border-r border-zinc-800 bg-zinc-900">
+      {/* Brand */}
+      <div className="flex items-center gap-2.5 border-b border-zinc-800 px-5 py-5">
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-500/15 text-indigo-400 ring-1 ring-indigo-500/30">
+          <span className="text-sm font-bold">T</span>
         </div>
         <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
+          <p className="text-sm font-semibold leading-tight text-zinc-50">TransitOps</p>
+          <p className="text-[11px] leading-tight text-zinc-500">Fleet &amp; Dispatch Console</p>
         </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+      </div>
 
-      <div className="ticks"></div>
+      {/* Nav */}
+      <nav className="flex-1 space-y-1 px-3 py-4">
+        <p className="px-2.5 pb-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-600">
+          Drivers &amp; Trips
+        </p>
+        {NAV_ITEMS.map((item) => (
+          <NavLink
+            key={item.to}
+            to={item.to}
+            className={({ isActive }) =>
+              [
+                'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition',
+                isActive
+                  ? 'bg-zinc-800 text-zinc-50 ring-1 ring-zinc-700'
+                  : 'text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200',
+              ].join(' ')
+            }
+          >
+            <span aria-hidden="true" className="text-base leading-none">{item.icon}</span>
+            {item.label}
+          </NavLink>
+        ))}
+      </nav>
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+      {/* Footer */}
+      <div className="border-t border-zinc-800 px-5 py-4">
+        <p className="text-[11px] text-zinc-600">Person B module · Drivers &amp; Trips</p>
+      </div>
+    </aside>
+  );
 }
 
-export default App
+function NotFound() {
+  return (
+    <div className="flex h-full flex-1 flex-col items-center justify-center bg-zinc-950 px-6 text-center">
+      <p className="text-xs font-semibold uppercase tracking-widest text-zinc-600">Error 404</p>
+      <h1 className="mt-3 text-3xl font-semibold text-zinc-100">This route doesn&apos;t exist.</h1>
+      <p className="mt-2 max-w-sm text-sm text-zinc-500">
+        The page you&apos;re looking for was never dispatched. Head back to the Driver Registry to keep moving.
+      </p>
+      <NavLink
+        to="/drivers"
+        className="mt-6 inline-flex items-center gap-2 rounded-lg bg-indigo-500 px-4 py-2.5 text-sm font-semibold text-zinc-50 hover:bg-indigo-400"
+      >
+        ← Back to Driver Registry
+      </NavLink>
+    </div>
+  );
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <div className="flex h-screen bg-zinc-950">
+        <Sidebar />
+        <main className="flex-1 overflow-y-auto">
+          <Routes>
+            <Route path="/" element={<Navigate to="/drivers" replace />} />
+            <Route path="/drivers" element={<Drivers />} />
+            <Route path="/trips/new" element={<CreateTrip />} />
+            <Route path="/trips" element={<TripList />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </main>
+      </div>
+    </BrowserRouter>
+  );
+}
