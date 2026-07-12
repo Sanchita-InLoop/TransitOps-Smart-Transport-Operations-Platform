@@ -10,6 +10,10 @@ import FuelExpenses from './pages/FuelExpenses';
 import Reports from './pages/Reports';
 import Vehicles from './pages/Vehicles';
 import MaintenanceLogs from './pages/MaintenanceLogs';
+import Login from './pages/Login';
+import Register from './pages/Register';
+import ProtectedRoute from './components/ProtectedRoute';
+import { AuthProvider } from './context/AuthContext';
 
 const NAV_ITEMS = [
   { to: '/drivers', label: 'Driver Registry', icon: '📋' },
@@ -81,7 +85,7 @@ function Sidebar() {
       </nav>
 
       <div className="border-t border-zinc-800 px-5 py-4">
-        <p className="text-[11px] text-zinc-600">TransitOps · Fleet Console</p>
+        <p className="text-[11px] text-zinc-600">TransitOps · Drivers, Trips, Fleet &amp; Maintenance</p>
       </div>
     </aside>
   );
@@ -99,25 +103,37 @@ function NotFound() {
   );
 }
 
+function AppShell() {
+  return (
+    <div className="flex h-screen bg-zinc-950">
+      <Sidebar />
+      <main className="flex-1 overflow-y-auto">
+        <Routes>
+          <Route path="/" element={<Navigate to="/drivers" replace />} />
+          <Route path="/drivers" element={<ProtectedRoute><Drivers /></ProtectedRoute>} />
+          <Route path="/trips/new" element={<ProtectedRoute><CreateTrip /></ProtectedRoute>} />
+          <Route path="/trips" element={<ProtectedRoute><TripList /></ProtectedRoute>} />
+          <Route path="/fuel-expenses" element={<ProtectedRoute><FuelExpenses /></ProtectedRoute>} />
+          <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
+          <Route path="/vehicles" element={<ProtectedRoute><Vehicles /></ProtectedRoute>} />
+          <Route path="/maintenance-logs" element={<ProtectedRoute><MaintenanceLogs /></ProtectedRoute>} />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </main>
+    </div>
+  );
+}
+
 export default function App() {
   return (
     <BrowserRouter>
-      <div className="flex h-screen bg-zinc-950">
-        <Sidebar />
-        <main className="flex-1 overflow-y-auto">
-          <Routes>
-            <Route path="/" element={<Navigate to="/drivers" replace />} />
-            <Route path="/drivers" element={<Drivers />} />
-            <Route path="/trips/new" element={<CreateTrip />} />
-            <Route path="/trips" element={<TripList />} />
-            <Route path="/fuel-expenses" element={<FuelExpenses />} />
-            <Route path="/reports" element={<Reports />} />
-            <Route path="/vehicles" element={<Vehicles />} />
-            <Route path="/maintenance-logs" element={<MaintenanceLogs />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </main>
-      </div>
+      <AuthProvider>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/*" element={<AppShell />} />
+        </Routes>
+      </AuthProvider>
     </BrowserRouter>
   );
 }
