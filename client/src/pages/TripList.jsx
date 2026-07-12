@@ -1,33 +1,7 @@
 'use strict';
 
-import React, { useMemo, useState } from 'react';
-
-// ============================================================================
-// Mock data — swap for a real fetch('/api/trips') call when wiring up the
-// backend. Trip shape mirrors TRIP_COLUMNS from trip.controller.js. Vehicle
-// and driver lookups are joined client-side purely for display purposes.
-// ============================================================================
-const mockDrivers = {
-  d1: { name: 'Rajesh Kumar' },
-  d2: { name: 'Amit Verma' },
-  d3: { name: 'Priya Sharma' },
-  d4: { name: 'Manoj Singh' },
-};
-
-const mockVehicles = {
-  v1: { plate: 'DL 01 AB 4521', max_load_capacity: 8000 },
-  v2: { plate: 'MH 12 CD 7788', max_load_capacity: 12000 },
-  v3: { plate: 'KA 05 EF 3391', max_load_capacity: 5000 },
-};
-
-const initialTrips = [
-  { id: 't1', vehicle_id: 'v1', driver_id: 'd1', source: 'Delhi', destination: 'Jaipur', cargo_weight: 6200, planned_distance: 281, actual_distance: null, fuel_consumed: null, status: 'draft', created_at: '2026-07-10', completed_at: null },
-  { id: 't2', vehicle_id: 'v2', driver_id: 'd2', source: 'Mumbai', destination: 'Pune', cargo_weight: 9100, planned_distance: 150, actual_distance: null, fuel_consumed: null, status: 'dispatched', created_at: '2026-07-11', completed_at: null },
-  { id: 't3', vehicle_id: 'v3', driver_id: 'd3', source: 'Bengaluru', destination: 'Mysuru', cargo_weight: 3200, planned_distance: 145, actual_distance: 149, fuel_consumed: 18.4, status: 'completed', created_at: '2026-07-05', completed_at: '2026-07-06' },
-  { id: 't4', vehicle_id: 'v1', driver_id: 'd4', source: 'Delhi', destination: 'Chandigarh', cargo_weight: 5400, planned_distance: 243, actual_distance: null, fuel_consumed: null, status: 'cancelled', created_at: '2026-07-08', completed_at: null },
-  { id: 't5', vehicle_id: 'v2', driver_id: 'd1', source: 'Mumbai', destination: 'Nashik', cargo_weight: 7800, planned_distance: 165, actual_distance: null, fuel_consumed: null, status: 'dispatched', created_at: '2026-07-12', completed_at: null },
-  { id: 't6', vehicle_id: 'v3', driver_id: 'd3', source: 'Bengaluru', destination: 'Chennai', cargo_weight: 2100, planned_distance: 346, actual_distance: null, fuel_consumed: null, status: 'draft', created_at: '2026-07-12', completed_at: null },
-];
+import React, { useMemo, useState, useEffect, useCallback } from 'react';
+import { api } from '../api/client';
 
 const TABS = [
   { key: 'draft', label: 'Draft' },
@@ -249,12 +223,29 @@ function CancelTripModal({ trip, onClose, onConfirm }) {
 // ============================================================================
 // Main page
 // ============================================================================
+function Spinner() {
+  return <div className="flex justify-center py-16"><div className="h-7 w-7 animate-spin rounded-full border-2 border-zinc-700 border-t-sky-400" /></div>;
+}
+
 export default function TripList() {
-  const [trips, setTrips] = useState(initialTrips);
-  const [activeTab, setActiveTab] = useState('dispatched');
+  const [trips,          setTrips]          = useState([]);
+  const [loading,        setLoading]        = useState(true);
+  const [actionLoading,  setActionLoading]  = useState(false);
+  const [apiError,       setApiError]       = useState(null);
+  const [activeTab,      setActiveTab]      = useState('dispatched');
   const [completingTrip, setCompletingTrip] = useState(null);
   const [cancellingTrip, setCancellingTrip] = useState(null);
-  const [toast, setToast] = useState(null);
+  const [toast,          setToast]          = useState(null);
+
+  const loadTrips = useCallback(() => {
+    setLoading(true);
+    api.get('/trips')
+      .then(setTrips)
+      .catch((e) => setApiError(e.message))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { loadTrips(); }, [loadTrips]);
 
   const tabCounts = useMemo(() => {
     const counts = { draft: 0, dispatched: 0, completed: 0, cancelled: 0 };
@@ -273,23 +264,40 @@ export default function TripList() {
     showToast._t = window.setTimeout(() => setToast(null), 2500);
   }
 
-  function handleConfirmComplete(tripId, { actual_distance, fuel_consumed }) {
-    setTrips((prev) =>
-      prev.map((t) =>
-        t.id === tripId
-          ? { ...t, status: 'completed', actual_distance, fuel_consumed, completed_at: new Date().toISOString().slice(0, 10) }
-          : t
-      )
-    );
-    setCompletingTrip(null);
-    showToast('Trip completed. Vehicle and driver are now Available.');
+  async function handleConfirmComplete(tripId, { actual_distance, fuel_consumed }) {
+    setActionLoading(true);
+    try {
+      const updated = await api.patch(`/trips/${tripId}/complete`, { actual_distance, fuel_consumed });
+      setTrips((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+      setCompletingTrip(null);
+      showToast('Trip completed. Vehicle and driver are now Available.');
+    } catch (err) {
+      showToast(`Error: ${err.message}`);
+    } finally {
+      setActionLoading(false);
+    }
   }
 
-  function handleConfirmCancel(tripId) {
-    setTrips((prev) => prev.map((t) => (t.id === tripId ? { ...t, status: 'cancelled' } : t)));
-    setCancellingTrip(null);
-    showToast('Trip cancelled.');
+  async function handleConfirmCancel(tripId) {
+    setActionLoading(true);
+    try {
+      const updated = await api.patch(`/trips/${tripId}/cancel`, {});
+      setTrips((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+      setCancellingTrip(null);
+      showToast('Trip cancelled.');
+    } catch (err) {
+      showToast(`Error: ${err.message}`);
+    } finally {
+      setActionLoading(false);
+    }
   }
+
+  if (loading) return <div className="min-h-screen bg-zinc-950"><Spinner /></div>;
+  if (apiError) return (
+    <div className="flex min-h-screen items-center justify-center bg-zinc-950 px-6 text-center">
+      <p className="text-sm text-red-400">{apiError}</p>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-zinc-950 px-6 py-8 text-zinc-100 md:px-10">
@@ -327,8 +335,10 @@ export default function TripList() {
         {/* Trip cards */}
         <div className="space-y-3">
           {visibleTrips.map((trip) => {
-            const driver = mockDrivers[trip.driver_id];
-            const vehicle = mockVehicles[trip.vehicle_id];
+            // Driver / vehicle names are embedded on the trip object if the
+            // backend JOINs them, otherwise fall back to the IDs.
+            const driverName  = trip.driver_name  ?? trip.driver_id  ?? '—';
+            const vehiclePlate = trip.vehicle_plate ?? trip.vehicle_id ?? '—';
             return (
               <div key={trip.id} className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
                 <div className="flex flex-wrap items-start justify-between gap-4">
@@ -366,8 +376,8 @@ export default function TripList() {
                 </div>
 
                 <div className="mt-4 grid grid-cols-2 gap-x-6 gap-y-2 border-t border-zinc-800 pt-4 text-xs sm:grid-cols-4">
-                  <InfoItem label="Driver" value={driver?.name ?? '—'} />
-                  <InfoItem label="Vehicle" value={vehicle?.plate ?? '—'} />
+                  <InfoItem label="Driver"           value={driverName} />
+                  <InfoItem label="Vehicle"           value={vehiclePlate} />
                   <InfoItem label="Cargo Weight" value={`${trip.cargo_weight.toLocaleString()} kg`} />
                   <InfoItem label="Planned Distance" value={`${trip.planned_distance} km`} />
                   {trip.status === 'completed' && (
@@ -406,7 +416,7 @@ export default function TripList() {
       )}
 
       {toast && (
-        <div className="fixed bottom-6 right-6 z-50 rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 text-sm text-zinc-200 shadow-xl">
+        <div className={`fixed bottom-6 right-6 z-50 rounded-lg border px-4 py-3 text-sm shadow-xl ${toast.startsWith('Error') ? 'border-red-500/30 bg-red-950 text-red-200' : 'border-zinc-800 bg-zinc-900 text-zinc-200'}`}>
           {toast}
         </div>
       )}

@@ -1,27 +1,36 @@
 'use strict';
 
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate, NavLink } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, NavLink, useNavigate } from 'react-router-dom';
 
-import Drivers from './pages/Drivers';
-import TripList from './pages/TripList';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import Login      from './pages/Login';
+import Dashboard  from './pages/Dashboard';
+import Vehicles   from './pages/Vehicles';
+import Drivers    from './pages/Drivers';
 import CreateTrip from './pages/Createtrip';
-import Dashboard from './pages/Dashboard';
-import Vehicles from './pages/Vehicles';
+import TripList   from './pages/TripList';
 
 // ============================================================================
-// Sidebar navigation config — single source of truth for the nav links so
-// the sidebar and any future breadcrumbs/mobile nav can share it.
+// Sidebar navigation
 // ============================================================================
 const NAV_ITEMS = [
-  { to: '/dashboard', label: 'Dashboard', icon: '📊' },
-  { to: '/vehicles', label: 'Vehicles', icon: '🚛' },
-  { to: '/drivers', label: 'Driver Registry', icon: '📋' },
-  { to: '/trips/new', label: 'Dispatch New Trip', icon: '🚚' },
-  { to: '/trips', label: 'Trip Monitor', icon: '🔄' },
+  { to: '/dashboard',  label: 'Dashboard',       icon: '📊' },
+  { to: '/vehicles',   label: 'Vehicles',         icon: '🚛' },
+  { to: '/drivers',    label: 'Driver Registry',  icon: '📋' },
+  { to: '/trips/new',  label: 'Dispatch Trip',    icon: '🚚' },
+  { to: '/trips',      label: 'Trip Monitor',     icon: '🔄' },
 ];
 
 function Sidebar() {
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+
+  function handleLogout() {
+    logout();
+    navigate('/login', { replace: true });
+  }
+
   return (
     <aside className="flex h-screen w-64 flex-shrink-0 flex-col border-r border-zinc-800 bg-zinc-900">
       {/* Brand */}
@@ -44,6 +53,7 @@ function Sidebar() {
           <NavLink
             key={item.to}
             to={item.to}
+            end={item.to === '/trips'}
             className={({ isActive }) =>
               [
                 'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition',
@@ -59,11 +69,54 @@ function Sidebar() {
         ))}
       </nav>
 
-      {/* Footer */}
+      {/* User + Logout */}
       <div className="border-t border-zinc-800 px-5 py-4">
-        <p className="text-[11px] text-zinc-600">TransitOps · Smart Transport Platform</p>
+        {user && (
+          <div className="mb-3">
+            <p className="text-xs font-medium text-zinc-300 truncate">{user.name ?? user.email}</p>
+            <p className="text-[11px] text-zinc-600 capitalize">{user.role?.replace('_', ' ')}</p>
+          </div>
+        )}
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="w-full rounded-lg border border-zinc-700 px-3 py-2 text-xs font-medium text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition"
+        >
+          Sign Out
+        </button>
       </div>
     </aside>
+  );
+}
+
+// ============================================================================
+// Protected route — redirects to /login if not authenticated
+// ============================================================================
+function ProtectedRoute({ children }) {
+  const { isAuthenticated } = useAuth();
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  return children;
+}
+
+// ============================================================================
+// Shell layout (sidebar + main content area)
+// ============================================================================
+function AppShell() {
+  return (
+    <div className="flex h-screen bg-zinc-950">
+      <Sidebar />
+      <main className="flex-1 overflow-y-auto">
+        <Routes>
+          <Route path="/"            element={<Navigate to="/dashboard" replace />} />
+          <Route path="/dashboard"   element={<Dashboard />} />
+          <Route path="/vehicles"    element={<Vehicles />} />
+          <Route path="/drivers"     element={<Drivers />} />
+          <Route path="/trips/new"   element={<CreateTrip />} />
+          <Route path="/trips"       element={<TripList />} />
+          <Route path="*"            element={<NotFound />} />
+        </Routes>
+      </main>
+    </div>
   );
 }
 
@@ -71,37 +124,36 @@ function NotFound() {
   return (
     <div className="flex h-full flex-1 flex-col items-center justify-center bg-zinc-950 px-6 text-center">
       <p className="text-xs font-semibold uppercase tracking-widest text-zinc-600">Error 404</p>
-      <h1 className="mt-3 text-3xl font-semibold text-zinc-100">This route doesn&apos;t exist.</h1>
-      <p className="mt-2 max-w-sm text-sm text-zinc-500">
-        The page you&apos;re looking for was never dispatched. Head back to the Dashboard to keep moving.
-      </p>
-      <NavLink
-        to="/dashboard"
-        className="mt-6 inline-flex items-center gap-2 rounded-lg bg-indigo-500 px-4 py-2.5 text-sm font-semibold text-zinc-50 hover:bg-indigo-400"
-      >
+      <h1 className="mt-3 text-3xl font-semibold text-zinc-100">Page not found.</h1>
+      <NavLink to="/dashboard" className="mt-6 inline-flex items-center gap-2 rounded-lg bg-indigo-500 px-4 py-2.5 text-sm font-semibold text-zinc-50 hover:bg-indigo-400">
         ← Back to Dashboard
       </NavLink>
     </div>
   );
 }
 
+// ============================================================================
+// Root
+// ============================================================================
 export default function App() {
   return (
-    <BrowserRouter>
-      <div className="flex h-screen bg-zinc-950">
-        <Sidebar />
-        <main className="flex-1 overflow-y-auto">
-          <Routes>
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/vehicles" element={<Vehicles />} />
-            <Route path="/drivers" element={<Drivers />} />
-            <Route path="/trips/new" element={<CreateTrip />} />
-            <Route path="/trips" element={<TripList />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </main>
-      </div>
-    </BrowserRouter>
+    <AuthProvider>
+      <BrowserRouter>
+        <Routes>
+          {/* Public */}
+          <Route path="/login" element={<Login />} />
+
+          {/* All other routes require a valid session */}
+          <Route
+            path="/*"
+            element={
+              <ProtectedRoute>
+                <AppShell />
+              </ProtectedRoute>
+            }
+          />
+        </Routes>
+      </BrowserRouter>
+    </AuthProvider>
   );
 }

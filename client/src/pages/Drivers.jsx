@@ -1,19 +1,7 @@
 'use strict';
 
-import React, { useState, useMemo } from 'react';
-
-// ============================================================================
-// Mock data — swap for a real fetch('/api/drivers') call when wiring up
-// the backend. Shape mirrors DRIVER_COLUMNS from driver.controller.js.
-// ============================================================================
-const initialDrivers = [
-  { id: 'd1', name: 'Rajesh Kumar', license_number: 'DL-0420110149646', license_category: 'HMV', license_expiry_date: '2026-08-15', contact_number: '9876543210', safety_score: 92, status: 'available' },
-  { id: 'd2', name: 'Amit Verma', license_number: 'MH-1220198765432', license_category: 'LMV', license_expiry_date: '2026-07-20', contact_number: '9812345678', safety_score: 78, status: 'on_trip' },
-  { id: 'd3', name: 'Sunil Yadav', license_number: 'UP-3220220011223', license_category: 'HMV', license_expiry_date: '2025-12-01', contact_number: '9900112233', safety_score: 65, status: 'suspended' },
-  { id: 'd4', name: 'Priya Sharma', license_number: 'KA-0520190033445', license_category: 'LMV', license_expiry_date: '2027-01-10', contact_number: '9765432109', safety_score: 88, status: 'off_duty' },
-  { id: 'd5', name: 'Manoj Singh', license_number: 'RJ-1420210099887', license_category: 'HMV', license_expiry_date: '2026-07-25', contact_number: '9654321098', safety_score: 95, status: 'available' },
-  { id: 'd6', name: 'Farhan Ali', license_number: 'TN-0920230055667', license_category: 'MC', license_expiry_date: '2026-01-02', contact_number: '9543210987', safety_score: 71, status: 'available' },
-];
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { api } from '../api/client';
 
 const LICENSE_CATEGORIES = ['LMV', 'HMV', 'MC', 'PSV'];
 
@@ -355,13 +343,30 @@ function inputClasses(error) {
 // ============================================================================
 // Main page
 // ============================================================================
+function Spinner() {
+  return <div className="flex justify-center py-16"><div className="h-7 w-7 animate-spin rounded-full border-2 border-zinc-700 border-t-emerald-400" /></div>;
+}
+
 export default function Drivers() {
-  const [drivers, setDrivers] = useState(initialDrivers);
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drivers,       setDrivers]       = useState([]);
+  const [loading,       setLoading]       = useState(true);
+  const [saving,        setSaving]        = useState(false);
+  const [apiError,      setApiError]      = useState(null);
+  const [search,        setSearch]        = useState('');
+  const [statusFilter,  setStatusFilter]  = useState('all');
+  const [drawerOpen,    setDrawerOpen]    = useState(false);
   const [editingDriver, setEditingDriver] = useState(null);
-  const [toast, setToast] = useState(null);
+  const [toast,         setToast]         = useState(null);
+
+  const loadDrivers = useCallback(() => {
+    setLoading(true);
+    api.get('/drivers')
+      .then(setDrivers)
+      .catch((e) => setApiError(e.message))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { loadDrivers(); }, [loadDrivers]);
 
   const filteredDrivers = useMemo(() => {
     return drivers.filter((d) => {
@@ -378,42 +383,38 @@ export default function Drivers() {
   function showToast(message) {
     setToast(message);
     window.clearTimeout(showToast._t);
-    showToast._t = window.setTimeout(() => setToast(null), 2500);
+    showToast._t = window.setTimeout(() => setToast(null), 3000);
   }
 
-  function openAddDrawer() {
-    setEditingDriver(null);
-    setDrawerOpen(true);
-  }
+  function openAddDrawer() { setEditingDriver(null); setDrawerOpen(true); }
+  function openEditDrawer(driver) { setEditingDriver(driver); setDrawerOpen(true); }
 
-  function openEditDrawer(driver) {
-    setEditingDriver(driver);
-    setDrawerOpen(true);
-  }
-
-  function handleFormSubmit(values) {
-    // Duplicate license number guard — mirrors the pre-check pattern in
-    // driver.controller.js (createDriver / updateDriver).
-    const duplicate = drivers.some(
-      (d) => d.license_number.toLowerCase() === values.license_number.toLowerCase() && d.id !== editingDriver?.id
-    );
-    if (duplicate) {
-      window.alert('A driver with this license number already exists.');
-      return;
+  async function handleFormSubmit(values) {
+    setSaving(true);
+    try {
+      if (editingDriver) {
+        const updated = await api.patch(`/drivers/${editingDriver.id}`, values);
+        setDrivers((prev) => prev.map((d) => (d.id === updated.id ? updated : d)));
+        showToast('Driver updated.');
+      } else {
+        const created = await api.post('/drivers', values);
+        setDrivers((prev) => [created, ...prev]);
+        showToast('Driver added.');
+      }
+      setDrawerOpen(false);
+    } catch (err) {
+      showToast(`Error: ${err.message}`);
+    } finally {
+      setSaving(false);
     }
-
-    if (editingDriver) {
-      setDrivers((prev) =>
-        prev.map((d) => (d.id === editingDriver.id ? { ...d, ...values } : d))
-      );
-      showToast('Driver updated.');
-    } else {
-      const newDriver = { ...values, id: `d${Date.now()}`, status: 'available' };
-      setDrivers((prev) => [newDriver, ...prev]);
-      showToast('Driver added.');
-    }
-    setDrawerOpen(false);
   }
+
+  if (loading) return <div className="min-h-screen bg-zinc-950"><Spinner /></div>;
+  if (apiError) return (
+    <div className="flex min-h-screen items-center justify-center bg-zinc-950 px-6 text-center">
+      <p className="text-sm text-red-400">{apiError}</p>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-zinc-950 px-6 py-8 text-zinc-100 md:px-10">
@@ -522,10 +523,11 @@ export default function Drivers() {
         onClose={() => setDrawerOpen(false)}
         onSubmit={handleFormSubmit}
         initialValues={editingDriver}
+        saving={saving}
       />
 
       {toast && (
-        <div className="fixed bottom-6 right-6 z-50 rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-3 text-sm text-zinc-200 shadow-xl">
+        <div className={`fixed bottom-6 right-6 z-50 rounded-lg border px-4 py-3 text-sm shadow-xl ${toast.startsWith('Error') ? 'border-red-500/30 bg-red-950 text-red-200' : 'border-zinc-800 bg-zinc-900 text-zinc-200'}`}>
           {toast}
         </div>
       )}
