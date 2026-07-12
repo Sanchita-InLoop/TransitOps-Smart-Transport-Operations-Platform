@@ -8,6 +8,8 @@ import TripList from './pages/TripList';
 import CreateTrip from './pages/CreateTrip';
 import FuelExpenses from './pages/FuelExpenses';
 import Reports from './pages/Reports';
+import Vehicles from './pages/Vehicles';
+import MaintenanceLogs from './pages/MaintenanceLogs';
 
 const NAV_ITEMS = [
   { to: '/drivers', label: 'Driver Registry', icon: '📋' },
@@ -15,6 +17,10 @@ const NAV_ITEMS = [
   { to: '/trips', label: 'Trip Monitor', icon: '🔄' },
   { to: '/fuel-expenses', label: 'Fuel & Expenses', icon: '⛽' },
   { to: '/reports', label: 'Reports', icon: '📊' },
+];
+const FLEET_NAV_ITEMS = [
+  { to: '/vehicles', label: 'Vehicle Registry', icon: '🚌' },
+  { to: '/maintenance-logs', label: 'Maintenance Logs', icon: '🔧' },
 ];
 
 function Sidebar() {
@@ -31,7 +37,31 @@ function Sidebar() {
       </div>
 
       <nav className="flex-1 space-y-1 px-3 py-4">
+        <p className="px-2.5 pb-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-600">
+          Drivers &amp; Trips
+        </p>
         {NAV_ITEMS.map((item) => (
+          <NavLink
+            key={item.to}
+            to={item.to}
+            className={({ isActive }) =>
+              [
+                'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition',
+                isActive
+                  ? 'bg-zinc-800 text-zinc-50 ring-1 ring-zinc-700'
+                  : 'text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200',
+              ].join(' ')
+            }
+          >
+            <span aria-hidden="true" className="text-base leading-none">{item.icon}</span>
+            {item.label}
+          </NavLink>
+        ))}
+
+        <p className="px-2.5 pb-2 pt-4 text-[10px] font-semibold uppercase tracking-wider text-zinc-600">
+          Fleet &amp; Maintenance
+        </p>
+        {FLEET_NAV_ITEMS.map((item) => (
           <NavLink
             key={item.to}
             to={item.to}
@@ -82,6 +112,8 @@ export default function App() {
             <Route path="/trips" element={<TripList />} />
             <Route path="/fuel-expenses" element={<FuelExpenses />} />
             <Route path="/reports" element={<Reports />} />
+            <Route path="/vehicles" element={<Vehicles />} />
+            <Route path="/maintenance-logs" element={<MaintenanceLogs />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </main>
