@@ -1,21 +1,8 @@
 'use strict';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { getVehicles, createVehicle, updateVehicle } from '../api/vehicle';
 
-// ============================================================================
-// Mock data — swap for a real fetch('/api/vehicles') call when wiring up
-// the backend. Shape mirrors the Vehicle API (model_name, type, status,
-// max_load_capacity, acquisition_cost).
-// ============================================================================
-const initialVehicles = [
-  { id: 'v1', model_name: 'Tata Starbus', type: 'Bus', max_load_capacity: 5000, acquisition_cost: 3200000, status: 'available' },
-  { id: 'v2', model_name: 'Ashok Leyland Dost', type: 'Van', max_load_capacity: 1500, acquisition_cost: 850000, status: 'in_shop' },
-  { id: 'v3', model_name: 'Mahindra Bolero Pickup', type: 'Truck', max_load_capacity: 2200, acquisition_cost: 950000, status: 'available' },
-  { id: 'v4', model_name: 'Force Traveller', type: 'Mini-Bus', max_load_capacity: 3200, acquisition_cost: 1800000, status: 'retired' },
-  { id: 'v5', model_name: 'Eicher Pro 2049', type: 'Truck', max_load_capacity: 4900, acquisition_cost: 2100000, status: 'available' },
-];
-
-// TODO(Person A): replace with the real enum from your Zod vehicle schema.
 const VEHICLE_TYPES = ['Bus', 'Mini-Bus', 'Van', 'Truck'];
 
 const STATUS_META = {
@@ -39,6 +26,10 @@ function formatCurrency(value) {
 function validateVehicleForm(values) {
   const errors = {};
 
+  if (!values.registration_number || values.registration_number.trim().length < 2) {
+    errors.registration_number = 'Registration number is required.';
+  }
+
   if (!values.model_name || values.model_name.trim().length < 2) {
     errors.model_name = 'Model name must be at least 2 characters long.';
   } else if (values.model_name.trim().length > 150) {
@@ -54,6 +45,13 @@ function validateVehicleForm(values) {
     errors.max_load_capacity = 'Max load capacity is required.';
   } else if (Number.isNaN(capacity) || capacity <= 0) {
     errors.max_load_capacity = 'Max load capacity must be a positive number.';
+  }
+
+  const odometer = Number(values.odometer);
+  if (values.odometer === '' || values.odometer === null) {
+    errors.odometer = 'Odometer reading is required.';
+  } else if (Number.isNaN(odometer) || odometer < 0) {
+    errors.odometer = 'Odometer must be zero or a positive number.';
   }
 
   const cost = Number(values.acquisition_cost);
@@ -110,9 +108,11 @@ function IconAlert(props) {
 // ============================================================================
 function VehicleFormDrawer({ open, onClose, onSubmit, initialValues }) {
   const emptyForm = {
+    registration_number: '',
     model_name: '',
     type: '',
     max_load_capacity: '',
+    odometer: '',
     acquisition_cost: '',
     status: 'available',
   };
@@ -120,8 +120,9 @@ function VehicleFormDrawer({ open, onClose, onSubmit, initialValues }) {
   const [values, setValues] = useState(initialValues ?? emptyForm);
   const [errors, setErrors] = useState({});
   const [submitAttempted, setSubmitAttempted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (open) {
       setValues(initialValues ?? emptyForm);
       setErrors({});
@@ -145,19 +146,23 @@ function VehicleFormDrawer({ open, onClose, onSubmit, initialValues }) {
     }
   }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault();
     setSubmitAttempted(true);
     const validationErrors = validateVehicleForm(values);
     setErrors(validationErrors);
     if (Object.keys(validationErrors).length > 0) return;
 
-    onSubmit({
+    setIsSubmitting(true);
+    await onSubmit({
       ...values,
+      registration_number: values.registration_number.trim(),
       model_name: values.model_name.trim(),
       max_load_capacity: Number(values.max_load_capacity),
+      odometer: Number(values.odometer),
       acquisition_cost: Number(values.acquisition_cost),
     });
+    setIsSubmitting(false);
   }
 
   const errorCount = Object.keys(errors).length;
@@ -190,6 +195,16 @@ function VehicleFormDrawer({ open, onClose, onSubmit, initialValues }) {
               </div>
             )}
 
+            <Field label="Registration Number" error={errors.registration_number}>
+              <input
+                type="text"
+                value={values.registration_number}
+                onChange={(e) => handleChange('registration_number', e.target.value)}
+                placeholder="e.g. WB-04-E-1234"
+                className={inputClasses(errors.registration_number)}
+              />
+            </Field>
+
             <Field label="Model Name" error={errors.model_name}>
               <input
                 type="text"
@@ -221,6 +236,17 @@ function VehicleFormDrawer({ open, onClose, onSubmit, initialValues }) {
                 onChange={(e) => handleChange('max_load_capacity', e.target.value)}
                 placeholder="e.g. 5000"
                 className={inputClasses(errors.max_load_capacity)}
+              />
+            </Field>
+
+            <Field label="Current Odometer (km)" error={errors.odometer}>
+              <input
+                type="number"
+                min={0}
+                value={values.odometer}
+                onChange={(e) => handleChange('odometer', e.target.value)}
+                placeholder="e.g. 15000"
+                className={inputClasses(errors.odometer)}
               />
             </Field>
 
@@ -257,11 +283,11 @@ function VehicleFormDrawer({ open, onClose, onSubmit, initialValues }) {
           </div>
 
           <div className="flex gap-3 border-t border-zinc-800 px-6 py-4">
-            <button type="button" onClick={onClose} className="flex-1 rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2.5 text-sm font-medium text-zinc-300 hover:bg-zinc-800">
+            <button type="button" onClick={onClose} disabled={isSubmitting} className="flex-1 rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2.5 text-sm font-medium text-zinc-300 hover:bg-zinc-800 disabled:opacity-50">
               Cancel
             </button>
-            <button type="submit" className="flex-1 rounded-lg bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-zinc-950 hover:bg-emerald-400">
-              {isEdit ? 'Save Changes' : 'Add Vehicle'}
+            <button type="submit" disabled={isSubmitting} className="flex-1 rounded-lg bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-zinc-950 hover:bg-emerald-400 disabled:opacity-50">
+              {isSubmitting ? 'Saving...' : (isEdit ? 'Save Changes' : 'Add Vehicle')}
             </button>
           </div>
         </form>
@@ -294,7 +320,7 @@ function inputClasses(error) {
 // Main page
 // ============================================================================
 export default function Vehicles() {
-  const [vehicles, setVehicles] = useState(initialVehicles);
+  const [vehicles, setVehicles] = useState([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
@@ -302,12 +328,26 @@ export default function Vehicles() {
   const [editingVehicle, setEditingVehicle] = useState(null);
   const [toast, setToast] = useState(null);
 
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  async function fetchData() {
+    try {
+      const data = await getVehicles();
+      setVehicles(data);
+    } catch (error) {
+      console.error('Error fetching vehicles:', error);
+      showToast('Failed to load vehicles.');
+    }
+  }
+
   const filteredVehicles = useMemo(() => {
     return vehicles.filter((v) => {
       const matchesStatus = statusFilter === 'all' || v.status === statusFilter;
       const matchesType = typeFilter === 'all' || v.type === typeFilter;
       const q = search.trim().toLowerCase();
-      const matchesSearch = q.length === 0 || v.model_name.toLowerCase().includes(q);
+      const matchesSearch = q.length === 0 || v.model_name.toLowerCase().includes(q) || (v.registration_number && v.registration_number.toLowerCase().includes(q));
       return matchesStatus && matchesType && matchesSearch;
     });
   }, [vehicles, search, statusFilter, typeFilter]);
@@ -328,16 +368,22 @@ export default function Vehicles() {
     setDrawerOpen(true);
   }
 
-  function handleFormSubmit(values) {
-    if (editingVehicle) {
-      setVehicles((prev) => prev.map((v) => (v.id === editingVehicle.id ? { ...v, ...values } : v)));
-      showToast('Vehicle updated.');
-    } else {
-      const newVehicle = { ...values, id: `v${Date.now()}`, status: 'available' };
-      setVehicles((prev) => [newVehicle, ...prev]);
-      showToast('Vehicle added.');
+  async function handleFormSubmit(values) {
+    try {
+      if (editingVehicle) {
+        const updatedVehicle = await updateVehicle(editingVehicle.id, values);
+        setVehicles((prev) => prev.map((v) => (v.id === updatedVehicle.id ? updatedVehicle : v)));
+        showToast('Vehicle updated.');
+      } else {
+        const newVehicle = await createVehicle(values);
+        setVehicles((prev) => [newVehicle, ...prev]);
+        showToast('Vehicle added.');
+      }
+      setDrawerOpen(false);
+    } catch (error) {
+      console.error('Error saving vehicle:', error);
+      showToast('Failed to save vehicle. Check console for details.');
     }
-    setDrawerOpen(false);
   }
 
   return (
@@ -358,7 +404,7 @@ export default function Vehicles() {
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by model name…"
+            placeholder="Search by model or reg number…"
             className="w-full max-w-xs rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-emerald-500/60"
           />
           <div className="flex flex-wrap items-center gap-3">
@@ -392,10 +438,10 @@ export default function Vehicles() {
             <table className="w-full text-left text-sm">
               <thead>
                 <tr className="border-b border-zinc-800 text-xs uppercase tracking-wide text-zinc-500">
-                  <th className="px-4 py-3 font-medium">Model Name</th>
+                  <th className="px-4 py-3 font-medium">Model / Reg</th>
                   <th className="px-4 py-3 font-medium">Type</th>
-                  <th className="px-4 py-3 font-medium">Max Load Capacity</th>
-                  <th className="px-4 py-3 font-medium">Acquisition Cost</th>
+                  <th className="px-4 py-3 font-medium">Capacity</th>
+                  <th className="px-4 py-3 font-medium">Acq. Cost</th>
                   <th className="px-4 py-3 font-medium">Status</th>
                   <th className="px-4 py-3 font-medium text-right">Actions</th>
                 </tr>
@@ -403,7 +449,10 @@ export default function Vehicles() {
               <tbody>
                 {filteredVehicles.map((vehicle) => (
                   <tr key={vehicle.id} className="border-b border-zinc-800/70 last:border-0 hover:bg-zinc-800/30">
-                    <td className="px-4 py-3 font-medium text-zinc-100">{vehicle.model_name}</td>
+                    <td className="px-4 py-3 font-medium text-zinc-100">
+                      <div>{vehicle.model_name}</div>
+                      <div className="text-xs font-normal text-zinc-500">{vehicle.registration_number}</div>
+                    </td>
                     <td className="px-4 py-3 text-zinc-300">{vehicle.type}</td>
                     <td className="px-4 py-3 text-zinc-400">{vehicle.max_load_capacity.toLocaleString('en-IN')} kg</td>
                     <td className="px-4 py-3 text-zinc-400">{formatCurrency(vehicle.acquisition_cost)}</td>
