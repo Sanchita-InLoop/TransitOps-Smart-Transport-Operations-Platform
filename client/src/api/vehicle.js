@@ -19,7 +19,7 @@ export async function createVehicle(payload) {
 }
 
 export async function updateVehicle(id, payload) {
-  const { data } = await client.put(`/vehicles/${id}`, payload);
+  const { data } = await client.patch(`/vehicles/${id}`, payload);
   return data;
 }
 

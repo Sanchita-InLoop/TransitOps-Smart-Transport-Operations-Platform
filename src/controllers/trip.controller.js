@@ -1,12 +1,11 @@
-// src/controllers/trip.controller.js
+'use strict';
 
-import db from '../config/db.js'; // Adjust path to your DB pool/client
-
+const db = require('../config/db');
 
 /**
  * 1. List all trips with optional filtering
  */
-export const listTrips = async (req, res) => {
+const listTrips = async (req, res) => {
   try {
     const { status } = req.query;
     let query = 'SELECT * FROM trips';
@@ -27,8 +26,8 @@ export const listTrips = async (req, res) => {
 /**
  * 2. Create a draft trip (Basic capacity validation)
  */
-export const createTrip = async (req, res) => {
-  const client = await db.connect();
+const createTrip = async (req, res) => {
+  const client = await db.getClient();
   try {
     const { vehicleId, cargoWeight, origin, destination } = req.body;
 
@@ -68,10 +67,10 @@ export const createTrip = async (req, res) => {
 /**
  * 3. Dispatch a trip (Atomic locking: No double-booking, verifies license expiry)
  */
-export const dispatchTrip = async (req, res) => {
+const dispatchTrip = async (req, res) => {
   const { id } = req.params;
   const { driverId } = req.body;
-  const client = await db.connect();
+  const client = await db.getClient();
 
   try {
     await client.query('BEGIN');
@@ -128,9 +127,9 @@ export const dispatchTrip = async (req, res) => {
 /**
  * 4. Complete a trip
  */
-export const completeTrip = async (req, res) => {
+const completeTrip = async (req, res) => {
   const { id } = req.params;
-  const client = await db.connect();
+  const client = await db.getClient();
 
   try {
     await client.query('BEGIN');
@@ -161,9 +160,9 @@ export const completeTrip = async (req, res) => {
 /**
  * 5. Cancel a trip
  */
-export const cancelTrip = async (req, res) => {
+const cancelTrip = async (req, res) => {
   const { id } = req.params;
-  const client = await db.connect();
+  const client = await db.getClient();
 
   try {
     await client.query('BEGIN');
@@ -194,3 +193,5 @@ export const cancelTrip = async (req, res) => {
     client.release();
   }
 };
+
+module.exports = { listTrips, createTrip, dispatchTrip, completeTrip, cancelTrip };
