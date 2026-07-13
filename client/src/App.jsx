@@ -5,9 +5,9 @@ import { BrowserRouter, Routes, Route, Navigate, NavLink } from 'react-router-do
 
 import Drivers from './pages/Drivers';
 import TripList from './pages/TripList';
-import CreateTrip from './pages/CreateTrip';
+import CreateTrip from './pages/Createtrip';
 import FuelExpenses from './pages/FuelExpenses';
-import Reports from './pages/Reports';
+import Reports from './pages/reports';
 import Vehicles from './pages/Vehicles';
 import MaintenanceLogs from './pages/MaintenanceLogs';
 import Login from './pages/Login';

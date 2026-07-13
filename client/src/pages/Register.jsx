@@ -4,9 +4,8 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
-// TODO(Person A): confirm the real role enum from your Zod auth schema —
-// 'fleet_manager' is confirmed from your Postman test, the others are guesses.
-const ROLES = ['fleet_manager', 'admin', 'maintenance_staff'];
+// Role enum confirmed from src/validators/auth.validator.js (VALID_ROLES).
+const ROLES = ['fleet_manager', 'driver', 'safety_officer', 'financial_analyst'];
 
 export default function Register() {
   const { register, isLoading } = useAuth();

@@ -1,33 +1,7 @@
 'use strict';
 
-import React, { useMemo, useState } from 'react';
-
-// ============================================================================
-// Mock data — swap for a real fetch('/api/trips') call when wiring up the
-// backend. Trip shape mirrors TRIP_COLUMNS from trip.controller.js. Vehicle
-// and driver lookups are joined client-side purely for display purposes.
-// ============================================================================
-const mockDrivers = {
-  d1: { name: 'Rajesh Kumar' },
-  d2: { name: 'Amit Verma' },
-  d3: { name: 'Priya Sharma' },
-  d4: { name: 'Manoj Singh' },
-};
-
-const mockVehicles = {
-  v1: { plate: 'DL 01 AB 4521', max_load_capacity: 8000 },
-  v2: { plate: 'MH 12 CD 7788', max_load_capacity: 12000 },
-  v3: { plate: 'KA 05 EF 3391', max_load_capacity: 5000 },
-};
-
-const initialTrips = [
-  { id: 't1', vehicle_id: 'v1', driver_id: 'd1', source: 'Delhi', destination: 'Jaipur', cargo_weight: 6200, planned_distance: 281, actual_distance: null, fuel_consumed: null, status: 'draft', created_at: '2026-07-10', completed_at: null },
-  { id: 't2', vehicle_id: 'v2', driver_id: 'd2', source: 'Mumbai', destination: 'Pune', cargo_weight: 9100, planned_distance: 150, actual_distance: null, fuel_consumed: null, status: 'dispatched', created_at: '2026-07-11', completed_at: null },
-  { id: 't3', vehicle_id: 'v3', driver_id: 'd3', source: 'Bengaluru', destination: 'Mysuru', cargo_weight: 3200, planned_distance: 145, actual_distance: 149, fuel_consumed: 18.4, status: 'completed', created_at: '2026-07-05', completed_at: '2026-07-06' },
-  { id: 't4', vehicle_id: 'v1', driver_id: 'd4', source: 'Delhi', destination: 'Chandigarh', cargo_weight: 5400, planned_distance: 243, actual_distance: null, fuel_consumed: null, status: 'cancelled', created_at: '2026-07-08', completed_at: null },
-  { id: 't5', vehicle_id: 'v2', driver_id: 'd1', source: 'Mumbai', destination: 'Nashik', cargo_weight: 7800, planned_distance: 165, actual_distance: null, fuel_consumed: null, status: 'dispatched', created_at: '2026-07-12', completed_at: null },
-  { id: 't6', vehicle_id: 'v3', driver_id: 'd3', source: 'Bengaluru', destination: 'Chennai', cargo_weight: 2100, planned_distance: 346, actual_distance: null, fuel_consumed: null, status: 'draft', created_at: '2026-07-12', completed_at: null },
-];
+import React, { useEffect, useMemo, useState } from 'react';
+import { apiClient } from '../Apiclient';
 
 const TABS = [
   { key: 'draft', label: 'Draft' },
@@ -43,9 +17,6 @@ const STATUS_META = {
   cancelled: { label: 'Cancelled', text: 'text-red-400', bg: 'bg-red-500/10', ring: 'ring-red-500/20', dot: 'bg-red-400' },
 };
 
-// ============================================================================
-// Helpers
-// ============================================================================
 function formatDate(dateStr) {
   if (!dateStr) return '—';
   const d = new Date(dateStr);
@@ -75,9 +46,6 @@ function validateCompleteForm(values, plannedDistance) {
   return errors;
 }
 
-// ============================================================================
-// Small presentational pieces
-// ============================================================================
 function StatusBadge({ status }) {
   const meta = STATUS_META[status] ?? STATUS_META.draft;
   return (
@@ -105,13 +73,25 @@ function IconAlert(props) {
   );
 }
 
-// ============================================================================
-// Complete Trip modal
-// ============================================================================
+function IconSpinner(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" {...props}>
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+      <path className="opacity-90" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4Z" />
+    </svg>
+  );
+}
+
+// NOTE: this posts { status: 'completed', actual_distance, fuel_consumed }
+// to PATCH /trips/:id. Your updateTripStatus controller needs to accept and
+// persist actual_distance/fuel_consumed when status === 'completed' — see
+// the patched trip.controller.mjs shared alongside this file.
 function CompleteTripModal({ trip, onClose, onConfirm }) {
   const [values, setValues] = useState({ actual_distance: '', fuel_consumed: '' });
   const [errors, setErrors] = useState({});
   const [submitAttempted, setSubmitAttempted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState(null);
 
   if (!trip) return null;
 
@@ -126,17 +106,24 @@ function CompleteTripModal({ trip, onClose, onConfirm }) {
     }
   }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault();
     setSubmitAttempted(true);
+    setSubmitError(null);
     const validationErrors = validateCompleteForm(values, trip.planned_distance);
     setErrors(validationErrors);
     if (Object.keys(validationErrors).length > 0) return;
 
-    onConfirm(trip.id, {
-      actual_distance: Number(values.actual_distance),
-      fuel_consumed: values.fuel_consumed === '' ? null : Number(values.fuel_consumed),
-    });
+    setIsSubmitting(true);
+    try {
+      await onConfirm(trip.id, {
+        actual_distance: Number(values.actual_distance),
+        fuel_consumed: values.fuel_consumed === '' ? null : Number(values.fuel_consumed),
+      });
+    } catch (err) {
+      setSubmitError(err.message || 'Failed to complete trip.');
+      setIsSubmitting(false);
+    }
   }
 
   const errorCount = Object.keys(errors).length;
@@ -154,6 +141,12 @@ function CompleteTripModal({ trip, onClose, onConfirm }) {
 
         <form onSubmit={handleSubmit}>
           <div className="space-y-4 px-5 py-4">
+            {submitError && (
+              <div className="flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2.5 text-sm text-red-300">
+                <IconAlert className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                <span>{submitError}</span>
+              </div>
+            )}
             {submitAttempted && errorCount > 0 && (
               <div className="flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2.5 text-sm text-red-300">
                 <IconAlert className="mt-0.5 h-4 w-4 flex-shrink-0" />
@@ -199,8 +192,9 @@ function CompleteTripModal({ trip, onClose, onConfirm }) {
             <button type="button" onClick={onClose} className="flex-1 rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2.5 text-sm font-medium text-zinc-300 hover:bg-zinc-800">
               Back
             </button>
-            <button type="submit" className="flex-1 rounded-lg bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-zinc-950 hover:bg-emerald-400">
-              Confirm Completion
+            <button type="submit" disabled={isSubmitting} className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-zinc-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60">
+              {isSubmitting && <IconSpinner className="h-4 w-4 animate-spin" />}
+              {isSubmitting ? 'Saving…' : 'Confirm Completion'}
             </button>
           </div>
         </form>
@@ -209,11 +203,23 @@ function CompleteTripModal({ trip, onClose, onConfirm }) {
   );
 }
 
-// ============================================================================
-// Cancel Trip confirm modal
-// ============================================================================
 function CancelTripModal({ trip, onClose, onConfirm }) {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState(null);
+
   if (!trip) return null;
+
+  async function handleConfirm() {
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      await onConfirm(trip.id);
+    } catch (err) {
+      setError(err.message || 'Failed to cancel trip.');
+      setIsSubmitting(false);
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
@@ -223,6 +229,12 @@ function CancelTripModal({ trip, onClose, onConfirm }) {
             <IconAlert className="h-5 w-5" />
             <h2 className="text-sm font-semibold">Cancel this trip?</h2>
           </div>
+          {error && (
+            <div className="mb-3 flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2.5 text-sm text-red-300">
+              <IconAlert className="mt-0.5 h-4 w-4 flex-shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
           <p className="text-sm text-zinc-400">
             {trip.source} → {trip.destination} will be marked <span className="font-medium text-zinc-200">cancelled</span>.
             {trip.status === 'dispatched' && ' The assigned vehicle and driver will be released back to Available.'}
@@ -235,10 +247,12 @@ function CancelTripModal({ trip, onClose, onConfirm }) {
           </button>
           <button
             type="button"
-            onClick={() => onConfirm(trip.id)}
-            className="flex-1 rounded-lg bg-red-500 px-4 py-2.5 text-sm font-semibold text-zinc-950 hover:bg-red-400"
+            onClick={handleConfirm}
+            disabled={isSubmitting}
+            className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-red-500 px-4 py-2.5 text-sm font-semibold text-zinc-950 hover:bg-red-400 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Cancel Trip
+            {isSubmitting && <IconSpinner className="h-4 w-4 animate-spin" />}
+            {isSubmitting ? 'Cancelling…' : 'Cancel Trip'}
           </button>
         </div>
       </div>
@@ -246,15 +260,31 @@ function CancelTripModal({ trip, onClose, onConfirm }) {
   );
 }
 
-// ============================================================================
-// Main page
-// ============================================================================
 export default function TripList() {
-  const [trips, setTrips] = useState(initialTrips);
+  const [trips, setTrips] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [activeTab, setActiveTab] = useState('dispatched');
   const [completingTrip, setCompletingTrip] = useState(null);
   const [cancellingTrip, setCancellingTrip] = useState(null);
   const [toast, setToast] = useState(null);
+
+  useEffect(() => {
+    loadTrips();
+  }, []);
+
+  async function loadTrips() {
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const res = await apiClient.get('/trips');
+      setTrips(res.data ?? []);
+    } catch (err) {
+      setLoadError(err.message || 'Failed to load trips.');
+    } finally {
+      setLoading(false);
+    }
+  }
 
   const tabCounts = useMemo(() => {
     const counts = { draft: 0, dispatched: 0, completed: 0, cancelled: 0 };
@@ -273,20 +303,16 @@ export default function TripList() {
     showToast._t = window.setTimeout(() => setToast(null), 2500);
   }
 
-  function handleConfirmComplete(tripId, { actual_distance, fuel_consumed }) {
-    setTrips((prev) =>
-      prev.map((t) =>
-        t.id === tripId
-          ? { ...t, status: 'completed', actual_distance, fuel_consumed, completed_at: new Date().toISOString().slice(0, 10) }
-          : t
-      )
-    );
+  async function handleConfirmComplete(tripId, { actual_distance, fuel_consumed }) {
+    const res = await apiClient.patch(`/trips/${tripId}`, { status: 'completed', actual_distance, fuel_consumed });
+    setTrips((prev) => prev.map((t) => (t.id === tripId ? res.data : t)));
     setCompletingTrip(null);
     showToast('Trip completed. Vehicle and driver are now Available.');
   }
 
-  function handleConfirmCancel(tripId) {
-    setTrips((prev) => prev.map((t) => (t.id === tripId ? { ...t, status: 'cancelled' } : t)));
+  async function handleConfirmCancel(tripId) {
+    const res = await apiClient.patch(`/trips/${tripId}`, { status: 'cancelled' });
+    setTrips((prev) => prev.map((t) => (t.id === tripId ? res.data : t)));
     setCancellingTrip(null);
     showToast('Trip cancelled.');
   }
@@ -294,13 +320,30 @@ export default function TripList() {
   return (
     <div className="min-h-screen bg-zinc-950 px-6 py-8 text-zinc-100 md:px-10">
       <div className="mx-auto max-w-6xl">
-        {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-xl font-semibold text-zinc-50">Trips</h1>
-          <p className="mt-1 text-sm text-zinc-500">Track trips through their lifecycle and close them out.</p>
+        <div className="mb-6 flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-semibold text-zinc-50">Trips</h1>
+            <p className="mt-1 text-sm text-zinc-500">Track trips through their lifecycle and close them out.</p>
+          </div>
+          {!loading && (
+            <button type="button" onClick={loadTrips} className="text-xs font-medium text-zinc-500 underline hover:text-zinc-300">
+              Refresh
+            </button>
+          )}
         </div>
 
-        {/* Status tabs */}
+        {loadError && (
+          <div className="mb-5 flex items-start justify-between gap-3 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+            <div className="flex items-start gap-2">
+              <IconAlert className="mt-0.5 h-4 w-4 flex-shrink-0" />
+              <span>{loadError}</span>
+            </div>
+            <button type="button" onClick={loadTrips} className="whitespace-nowrap text-xs font-semibold underline hover:text-red-200">
+              Retry
+            </button>
+          </div>
+        )}
+
         <div className="mb-5 flex gap-1 border-b border-zinc-800">
           {TABS.map((tab) => {
             const isActive = activeTab === tab.key;
@@ -324,64 +367,67 @@ export default function TripList() {
           })}
         </div>
 
-        {/* Trip cards */}
         <div className="space-y-3">
-          {visibleTrips.map((trip) => {
-            const driver = mockDrivers[trip.driver_id];
-            const vehicle = mockVehicles[trip.vehicle_id];
-            return (
-              <div key={trip.id} className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                  <div className="flex-1 min-w-[220px]">
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-sm font-semibold text-zinc-100">{trip.source} → {trip.destination}</h3>
-                      <StatusBadge status={trip.status} />
-                    </div>
-                    <p className="mt-1 text-xs text-zinc-500">
-                      Trip #{trip.id.toUpperCase()} · Created {formatDate(trip.created_at)}
-                      {trip.completed_at && ` · Completed ${formatDate(trip.completed_at)}`}
-                    </p>
-                  </div>
+          {loading && (
+            <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 px-6 py-14 text-center text-sm text-zinc-500">
+              <span className="inline-flex items-center gap-2">
+                <IconSpinner className="h-4 w-4 animate-spin" /> Loading trips…
+              </span>
+            </div>
+          )}
 
-                  <div className="flex gap-2">
-                    {trip.status === 'dispatched' && (
-                      <button
-                        type="button"
-                        onClick={() => setCompletingTrip(trip)}
-                        className="rounded-lg bg-emerald-500 px-3.5 py-2 text-xs font-semibold text-zinc-950 hover:bg-emerald-400"
-                      >
-                        Complete Trip
-                      </button>
-                    )}
-                    {(trip.status === 'draft' || trip.status === 'dispatched') && (
-                      <button
-                        type="button"
-                        onClick={() => setCancellingTrip(trip)}
-                        className="rounded-lg border border-red-500/40 bg-red-500/10 px-3.5 py-2 text-xs font-semibold text-red-400 hover:bg-red-500/20"
-                      >
-                        Cancel Trip
-                      </button>
-                    )}
+          {!loading && visibleTrips.map((trip) => (
+            <div key={trip.id} className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div className="flex-1 min-w-[220px]">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-semibold text-zinc-100">{trip.source} → {trip.destination}</h3>
+                    <StatusBadge status={trip.status} />
                   </div>
+                  <p className="mt-1 text-xs text-zinc-500">
+                    Trip #{trip.id} · Created {formatDate(trip.created_at)}
+                    {trip.completed_at && ` · Completed ${formatDate(trip.completed_at)}`}
+                  </p>
                 </div>
 
-                <div className="mt-4 grid grid-cols-2 gap-x-6 gap-y-2 border-t border-zinc-800 pt-4 text-xs sm:grid-cols-4">
-                  <InfoItem label="Driver" value={driver?.name ?? '—'} />
-                  <InfoItem label="Vehicle" value={vehicle?.plate ?? '—'} />
-                  <InfoItem label="Cargo Weight" value={`${trip.cargo_weight.toLocaleString()} kg`} />
-                  <InfoItem label="Planned Distance" value={`${trip.planned_distance} km`} />
-                  {trip.status === 'completed' && (
-                    <>
-                      <InfoItem label="Actual Distance" value={`${trip.actual_distance} km`} />
-                      <InfoItem label="Fuel Consumed" value={trip.fuel_consumed != null ? `${trip.fuel_consumed} L` : '—'} />
-                    </>
+                <div className="flex gap-2">
+                  {trip.status === 'dispatched' && (
+                    <button
+                      type="button"
+                      onClick={() => setCompletingTrip(trip)}
+                      className="rounded-lg bg-emerald-500 px-3.5 py-2 text-xs font-semibold text-zinc-950 hover:bg-emerald-400"
+                    >
+                      Complete Trip
+                    </button>
+                  )}
+                  {(trip.status === 'draft' || trip.status === 'dispatched') && (
+                    <button
+                      type="button"
+                      onClick={() => setCancellingTrip(trip)}
+                      className="rounded-lg border border-red-500/40 bg-red-500/10 px-3.5 py-2 text-xs font-semibold text-red-400 hover:bg-red-500/20"
+                    >
+                      Cancel Trip
+                    </button>
                   )}
                 </div>
               </div>
-            );
-          })}
 
-          {visibleTrips.length === 0 && (
+              <div className="mt-4 grid grid-cols-2 gap-x-6 gap-y-2 border-t border-zinc-800 pt-4 text-xs sm:grid-cols-4">
+                <InfoItem label="Driver" value={trip.driver_name ?? '—'} />
+                <InfoItem label="Vehicle" value={trip.vehicle_registration ?? '—'} />
+                <InfoItem label="Cargo Weight" value={`${Number(trip.cargo_weight).toLocaleString()} kg`} />
+                <InfoItem label="Planned Distance" value={`${trip.planned_distance} km`} />
+                {trip.status === 'completed' && (
+                  <>
+                    <InfoItem label="Actual Distance" value={`${trip.actual_distance} km`} />
+                    <InfoItem label="Fuel Consumed" value={trip.fuel_consumed != null ? `${trip.fuel_consumed} L` : '—'} />
+                  </>
+                )}
+              </div>
+            </div>
+          ))}
+
+          {!loading && !loadError && visibleTrips.length === 0 && (
             <div className="rounded-xl border border-dashed border-zinc-800 bg-zinc-900/40 px-6 py-14 text-center">
               <p className="text-sm text-zinc-500">No trips in <span className="text-zinc-300">{STATUS_META[activeTab].label}</span> right now.</p>
             </div>
@@ -390,19 +436,11 @@ export default function TripList() {
       </div>
 
       {completingTrip && (
-        <CompleteTripModal
-          trip={completingTrip}
-          onClose={() => setCompletingTrip(null)}
-          onConfirm={handleConfirmComplete}
-        />
+        <CompleteTripModal trip={completingTrip} onClose={() => setCompletingTrip(null)} onConfirm={handleConfirmComplete} />
       )}
 
       {cancellingTrip && (
-        <CancelTripModal
-          trip={cancellingTrip}
-          onClose={() => setCancellingTrip(null)}
-          onConfirm={handleConfirmCancel}
-        />
+        <CancelTripModal trip={cancellingTrip} onClose={() => setCancellingTrip(null)} onConfirm={handleConfirmCancel} />
       )}
 
       {toast && (

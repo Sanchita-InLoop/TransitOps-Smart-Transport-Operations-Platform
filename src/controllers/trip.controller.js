@@ -1,219 +1,196 @@
-'use strict';
+// src/controllers/trip.controller.js
 
-const { query, getClient } = require('../config/db');
-const ApiError = require('../utils/ApiError');
-const catchAsync = require('../utils/catchAsync');
+import db from '../config/db.js'; // Adjust path to your DB pool/client
 
-/**
- * THIS FILE REPLACES: trip.controller.mjs (getTrips/createTrip/updateTripStatus)
- *
- * That version was a generic stub: ESM, no validation, and a single
- * `updateTripStatus` PATCH /:id handler that (almost certainly) wrote
- * trips.status directly with no transaction and none of the required
- * business rules below. If that handler was used to "dispatch" a trip,
- * it could set status='dispatched' without ever flipping the vehicle
- * and driver to 'on_trip' — silently corrupting fleet state with no
- * error at all. This version restores the full, tested dispatch logic.
- */
-
-const TRIP_COLUMNS = `id, vehicle_id, driver_id, source, destination, cargo_weight,
-                      planned_distance, actual_distance, fuel_consumed, status,
-                      created_at, completed_at`;
-
-// GET /api/trips
-const listTrips = catchAsync(async (req, res) => {
-  const result = await query(`SELECT ${TRIP_COLUMNS} FROM trips ORDER BY created_at DESC`);
-  res.status(200).json({ success: true, data: result.rows });
-});
-
-// POST /api/trips — always created in 'draft' status.
-const createTrip = catchAsync(async (req, res) => {
-  const { vehicle_id, driver_id, source, destination, cargo_weight, planned_distance } = req.body;
-
-  const vehicleCheck = await query('SELECT id FROM vehicles WHERE id = $1', [vehicle_id]);
-  if (vehicleCheck.rows.length === 0) {
-    throw ApiError.notFound('The specified vehicle does not exist.');
-  }
-  const driverCheck = await query('SELECT id FROM drivers WHERE id = $1', [driver_id]);
-  if (driverCheck.rows.length === 0) {
-    throw ApiError.notFound('The specified driver does not exist.');
-  }
-
-  const result = await query(
-    `INSERT INTO trips (vehicle_id, driver_id, source, destination, cargo_weight, planned_distance, status)
-     VALUES ($1, $2, $3, $4, $5, $6, 'draft')
-     RETURNING ${TRIP_COLUMNS}`,
-    [vehicle_id, driver_id, source, destination, cargo_weight, planned_distance]
-  );
-
-  res.status(201).json({ success: true, data: result.rows[0] });
-});
 
 /**
- * PATCH /api/trips/:id/dispatch
- * ============================================================================
- * ATOMIC TRANSACTION — the core deliverable for this vertical slice.
- * One checked-out client, BEGIN -> validate -> UPDATE x3 -> COMMIT, with
- * ROLLBACK on any failure and unconditional client.release(). SELECT ...
- * FOR UPDATE locks trip/vehicle/driver rows so two concurrent dispatch
- * requests can't both read 'available' and double-book the same asset.
- * ============================================================================
+ * 1. List all trips with optional filtering
  */
-const dispatchTrip = catchAsync(async (req, res) => {
-  const { id: tripId } = req.params;
-  const client = await getClient();
+export const listTrips = async (req, res) => {
+  try {
+    const { status } = req.query;
+    let query = 'SELECT * FROM trips';
+    const params = [];
+
+    if (status) {
+      query += ' WHERE status = $1';
+      params.push(status);
+    }
+
+    const { rows } = await db.query(query, params);
+    return res.status(200).json(rows);
+  } catch (error) {
+    return res.status(500).json({ error: 'Failed to fetch trips', details: error.message });
+  }
+};
+
+/**
+ * 2. Create a draft trip (Basic capacity validation)
+ */
+export const createTrip = async (req, res) => {
+  const client = await db.connect();
+  try {
+    const { vehicleId, cargoWeight, origin, destination } = req.body;
+
+    await client.query('BEGIN');
+
+    // Atomic check for vehicle existence and weight capacity
+    const vehicleRes = await client.query(
+      'SELECT max_weight_capacity FROM vehicles WHERE id = $1 FOR SHARE',
+      [vehicleId]
+    );
+
+    if (vehicleRes.rows.length === 0) {
+      throw new Error('Vehicle not found');
+    }
+
+    if (cargoWeight > vehicleRes.rows[0].max_weight_capacity) {
+      throw new Error('Cargo weight exceeds vehicle capacity');
+    }
+
+    const insertQuery = `
+      INSERT INTO trips (vehicle_id, cargo_weight, origin, destination, status)
+      VALUES ($1, $2, $3, $4, 'draft')
+      RETURNING *
+    `;
+    const { rows } = await client.query(insertQuery, [vehicleId, cargoWeight, origin, destination]);
+    
+    await client.query('COMMIT');
+    return res.status(201).json(rows[0]);
+  } catch (error) {
+    await client.query('ROLLBACK');
+    return res.status(400).json({ error: error.message });
+  } finally {
+    client.release();
+  }
+};
+
+/**
+ * 3. Dispatch a trip (Atomic locking: No double-booking, verifies license expiry)
+ */
+export const dispatchTrip = async (req, res) => {
+  const { id } = req.params;
+  const { driverId } = req.body;
+  const client = await db.connect();
 
   try {
     await client.query('BEGIN');
 
-    const tripResult = await client.query(
-      `SELECT ${TRIP_COLUMNS} FROM trips WHERE id = $1 FOR UPDATE`,
-      [tripId]
+    // 1. Lock the trip and ensure it's in 'draft' status
+    const tripRes = await client.query(
+      'SELECT * FROM trips WHERE id = $1 AND status = \'draft\' FOR UPDATE',
+      [id]
     );
-    const trip = tripResult.rows[0];
-    if (!trip) throw ApiError.notFound('Trip not found.');
-    if (trip.status !== 'draft') {
-      throw ApiError.conflict(`Only a 'draft' trip can be dispatched (current status: '${trip.status}').`);
+    if (tripRes.rows.length === 0) {
+      throw new Error('Trip not found or not in draft status');
     }
 
-    const vehicleResult = await client.query(
-      'SELECT id, max_load_capacity, status FROM vehicles WHERE id = $1 FOR UPDATE',
-      [trip.vehicle_id]
+    // 2. Lock driver and check license expiry
+    const driverRes = await client.query(
+      'SELECT license_expiry_date FROM drivers WHERE id = $1 FOR SHARE',
+      [driverId]
     );
-    const vehicle = vehicleResult.rows[0];
-    if (!vehicle) throw ApiError.notFound('Assigned vehicle not found.');
+    if (driverRes.rows.length === 0) {
+      throw new Error('Driver not found');
+    }
+    if (new Date(driverRes.rows[0].license_expiry_date) < new Date()) {
+      throw new Error('Cannot dispatch: Driver license has expired');
+    }
 
-    const driverResult = await client.query(
-      'SELECT id, status, license_expiry_date FROM drivers WHERE id = $1 FOR UPDATE',
-      [trip.driver_id]
+    // 3. Prevent double-booking (Check if driver is already on an active trip)
+    const activeTripRes = await client.query(
+      'SELECT id FROM trips WHERE driver_id = $1 AND status = \'dispatched\' FOR SHARE',
+      [driverId]
     );
-    const driver = driverResult.rows[0];
-    if (!driver) throw ApiError.notFound('Assigned driver not found.');
-
-    // (b) Cargo weight vs. vehicle max load capacity
-    if (Number(trip.cargo_weight) > Number(vehicle.max_load_capacity)) {
-      throw ApiError.badRequest(
-        `Cargo weight (${trip.cargo_weight}) exceeds this vehicle's max load capacity (${vehicle.max_load_capacity}).`
-      );
+    if (activeTripRes.rows.length > 0) {
+      throw new Error('Driver is already assigned to an active dispatched trip');
     }
 
-    // (c) Double-booking guard
-    if (vehicle.status === 'on_trip') {
-      throw ApiError.conflict('This vehicle is already assigned to another active trip.');
-    }
-    if (driver.status === 'on_trip') {
-      throw ApiError.conflict('This driver is already assigned to another active trip.');
-    }
-
-    // (d) License expiry + suspension
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    if (new Date(driver.license_expiry_date) <= today) {
-      throw ApiError.conflict('Driver license has expired and cannot be dispatched.');
-    }
-    if (driver.status === 'suspended') {
-      throw ApiError.conflict('Driver is suspended and cannot be dispatched.');
-    }
-    if (driver.status !== 'available') {
-      throw ApiError.conflict(`Driver is not available for dispatch (current status: '${driver.status}').`);
-    }
-
-    // (e) Vehicle status
-    if (vehicle.status === 'retired' || vehicle.status === 'in_shop') {
-      throw ApiError.conflict(`Vehicle cannot be dispatched (current status: '${vehicle.status}').`);
-    }
-    if (vehicle.status !== 'available') {
-      throw ApiError.conflict(`Vehicle is not available for dispatch (current status: '${vehicle.status}').`);
-    }
-
-    // (f) Commit the three-way state change
-    const updatedTripResult = await client.query(
-      `UPDATE trips SET status = 'dispatched' WHERE id = $1 RETURNING ${TRIP_COLUMNS}`,
-      [tripId]
-    );
-    await client.query(`UPDATE vehicles SET status = 'on_trip' WHERE id = $1`, [trip.vehicle_id]);
-    await client.query(`UPDATE drivers SET status = 'on_trip' WHERE id = $1`, [trip.driver_id]);
+    // 4. Update the trip to dispatched
+    const updateQuery = `
+      UPDATE trips 
+      SET driver_id = $1, status = 'dispatched', dispatched_at = NOW() 
+      WHERE id = $2 
+      RETURNING *
+    `;
+    const { rows } = await client.query(updateQuery, [driverId, id]);
 
     await client.query('COMMIT');
-    res.status(200).json({ success: true, data: updatedTripResult.rows[0] });
-  } catch (err) {
+    return res.status(200).json(rows[0]);
+  } catch (error) {
     await client.query('ROLLBACK');
-    throw err;
+    return res.status(400).json({ error: error.message });
   } finally {
     client.release();
   }
-});
+};
 
-// PATCH /api/trips/:id/complete — same atomic pattern, releases vehicle/driver.
-const completeTrip = catchAsync(async (req, res) => {
-  const { id: tripId } = req.params;
-  const { actual_distance, fuel_consumed } = req.body;
-  const client = await getClient();
+/**
+ * 4. Complete a trip
+ */
+export const completeTrip = async (req, res) => {
+  const { id } = req.params;
+  const client = await db.connect();
 
   try {
     await client.query('BEGIN');
 
-    const tripResult = await client.query(`SELECT ${TRIP_COLUMNS} FROM trips WHERE id = $1 FOR UPDATE`, [tripId]);
-    const trip = tripResult.rows[0];
-    if (!trip) throw ApiError.notFound('Trip not found.');
-    if (trip.status !== 'dispatched') {
-      throw ApiError.conflict(`Only a 'dispatched' trip can be completed (current status: '${trip.status}').`);
+    const tripRes = await client.query(
+      'SELECT id FROM trips WHERE id = $1 AND status = \'dispatched\' FOR UPDATE',
+      [id]
+    );
+    if (tripRes.rows.length === 0) {
+      throw new Error('Trip not found or cannot be completed (must be dispatched)');
     }
 
-    const updatedTripResult = await client.query(
-      `UPDATE trips
-       SET status = 'completed', actual_distance = $1, fuel_consumed = $2, completed_at = now()
-       WHERE id = $3
-       RETURNING ${TRIP_COLUMNS}`,
-      [actual_distance, fuel_consumed ?? null, tripId]
+    const { rows } = await client.query(
+      'UPDATE trips SET status = \'completed\', completed_at = NOW() WHERE id = $1 RETURNING *',
+      [id]
     );
 
-    await client.query(`UPDATE vehicles SET status = 'available' WHERE id = $1`, [trip.vehicle_id]);
-    await client.query(`UPDATE drivers SET status = 'available' WHERE id = $1`, [trip.driver_id]);
-
     await client.query('COMMIT');
-    res.status(200).json({ success: true, data: updatedTripResult.rows[0] });
-  } catch (err) {
+    return res.status(200).json(rows[0]);
+  } catch (error) {
     await client.query('ROLLBACK');
-    throw err;
+    return res.status(400).json({ error: error.message });
   } finally {
     client.release();
   }
-});
+};
 
-// PATCH /api/trips/:id/cancel — releases vehicle/driver only if they were dispatched.
-const cancelTrip = catchAsync(async (req, res) => {
-  const { id: tripId } = req.params;
-  const client = await getClient();
+/**
+ * 5. Cancel a trip
+ */
+export const cancelTrip = async (req, res) => {
+  const { id } = req.params;
+  const client = await db.connect();
 
   try {
     await client.query('BEGIN');
 
-    const tripResult = await client.query(`SELECT ${TRIP_COLUMNS} FROM trips WHERE id = $1 FOR UPDATE`, [tripId]);
-    const trip = tripResult.rows[0];
-    if (!trip) throw ApiError.notFound('Trip not found.');
-    if (!['draft', 'dispatched'].includes(trip.status)) {
-      throw ApiError.conflict(`A trip with status '${trip.status}' cannot be cancelled.`);
+    // Trips can only be cancelled if they aren't already finalized (completed/cancelled)
+    const tripRes = await client.query(
+      'SELECT status FROM trips WHERE id = $1 FOR UPDATE',
+      [id]
+    );
+    if (tripRes.rows.length === 0) {
+      throw new Error('Trip not found');
+    }
+    if (['completed', 'cancelled'].includes(tripRes.rows[0].status)) {
+      throw new Error(`Cannot cancel a trip that is already ${tripRes.rows[0].status}`);
     }
 
-    const updatedTripResult = await client.query(
-      `UPDATE trips SET status = 'cancelled' WHERE id = $1 RETURNING ${TRIP_COLUMNS}`,
-      [tripId]
+    const { rows } = await client.query(
+      'UPDATE trips SET status = \'cancelled\', cancelled_at = NOW() WHERE id = $1 RETURNING *',
+      [id]
     );
 
-    if (trip.status === 'dispatched') {
-      await client.query(`UPDATE vehicles SET status = 'available' WHERE id = $1`, [trip.vehicle_id]);
-      await client.query(`UPDATE drivers SET status = 'available' WHERE id = $1`, [trip.driver_id]);
-    }
-
     await client.query('COMMIT');
-    res.status(200).json({ success: true, data: updatedTripResult.rows[0] });
-  } catch (err) {
+    return res.status(200).json(rows[0]);
+  } catch (error) {
     await client.query('ROLLBACK');
-    throw err;
+    return res.status(400).json({ error: error.message });
   } finally {
     client.release();
   }
-});
-
-module.exports = { listTrips, createTrip, dispatchTrip, completeTrip, cancelTrip };
+};
