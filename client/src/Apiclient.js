@@ -6,7 +6,7 @@
 const API_BASE_URL = 'http://localhost:4000/api';
 
 function getToken() {
-  return localStorage.getItem('token');
+  return localStorage.getItem('transitops_token');
 }
 
 async function request(path, { method = 'GET', body, headers = {} } = {}) {

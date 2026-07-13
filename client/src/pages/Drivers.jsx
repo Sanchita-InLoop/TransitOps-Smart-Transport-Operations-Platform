@@ -1,7 +1,7 @@
 'use strict';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { apiClient } from '../api/apiClient';
+import { apiClient } from '../Apiclient';
 
 const LICENSE_CATEGORIES = ['LMV', 'HMV', 'MC', 'PSV'];
 

@@ -1,18 +1,18 @@
 import { useState, useEffect } from 'react';
-import { apiRequest } from '../api';
+import { apiClient, API_BASE_URL } from '../Apiclient';
 
-const BASE_URL = 'http://localhost:4000/api';
+const BASE_URL = API_BASE_URL;
 
 export default function Reports() {
   const [reports, setReports] = useState([]);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    apiRequest('/reports/vehicles').then(setReports).catch((e) => setError(e.message));
+    apiClient.get('/reports/vehicles').then(setReports).catch((e) => setError(e.message));
   }, []);
 
   function downloadCsv() {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('transitops_token');
     fetch(`${BASE_URL}/reports/export`, { headers: { Authorization: `Bearer ${token}` } })
       .then((res) => res.blob())
       .then((blob) => {

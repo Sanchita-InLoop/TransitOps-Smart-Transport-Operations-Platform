@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { apiRequest } from '../api';
+import { apiClient } from '../Apiclient';
 
 export default function FuelExpenses() {
   const [vehicles, setVehicles] = useState([]);
@@ -8,14 +8,14 @@ export default function FuelExpenses() {
   const [message, setMessage] = useState('');
 
   useEffect(() => {
-    apiRequest('/vehicles').then(setVehicles).catch(() => {});
+    apiClient.get('/vehicles').then(setVehicles).catch(() => {});
   }, []);
 
   async function submitFuel(e) {
     e.preventDefault();
     setMessage('');
     try {
-      await apiRequest('/fuel-logs', { method: 'POST', body: JSON.stringify(fuelForm) });
+      await apiClient.post('/fuel-logs', fuelForm);
       setMessage('Fuel log added successfully.');
       setFuelForm({ vehicle_id: '', liters: '', cost: '', date: '' });
     } catch (err) {
@@ -27,7 +27,7 @@ export default function FuelExpenses() {
     e.preventDefault();
     setMessage('');
     try {
-      await apiRequest('/expenses', { method: 'POST', body: JSON.stringify(expenseForm) });
+      await apiClient.post('/expenses', expenseForm);
       setMessage('Expense added successfully.');
       setExpenseForm({ vehicle_id: '', type: 'toll', description: '', amount: '', date: '' });
     } catch (err) {
