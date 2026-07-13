@@ -8,7 +8,7 @@ export default function FuelExpenses() {
   const [message, setMessage] = useState('');
 
   useEffect(() => {
-    apiClient.get('/vehicles').then(setVehicles).catch(() => {});
+    apiClient.get('/vehicles').then((res) => setVehicles(res.data ?? [])).catch(() => {});
   }, []);
 
   async function submitFuel(e) {

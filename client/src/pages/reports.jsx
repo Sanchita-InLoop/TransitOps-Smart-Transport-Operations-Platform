@@ -8,7 +8,7 @@ export default function Reports() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    apiClient.get('/reports/vehicles').then(setReports).catch((e) => setError(e.message));
+    apiClient.get('/reports/vehicles').then((res) => setReports(res.data ?? [])).catch((e) => setError(e.message));
   }, []);
 
   function downloadCsv() {
